@@ -16,7 +16,7 @@
 namespace Shader::Maxwell {
 namespace {
 enum class DestFormat : u64 {
-    Invalid,
+    I8,
     I16,
     I32,
     I64,
@@ -50,6 +50,8 @@ union F2I {
 
 size_t BitSize(DestFormat dest_format) {
     switch (dest_format) {
+    case DestFormat::I8:
+        return 8;
     case DestFormat::I16:
         return 16;
     case DestFormat::I32:
@@ -64,6 +66,9 @@ size_t BitSize(DestFormat dest_format) {
 std::pair<f64, f64> ClampBounds(DestFormat format, bool is_signed) {
     if (is_signed) {
         switch (format) {
+        case DestFormat::I8:
+            return {static_cast<f64>((std::numeric_limits<s8>::max)()),
+                    static_cast<f64>((std::numeric_limits<s8>::min)())};
         case DestFormat::I16:
             return {static_cast<f64>((std::numeric_limits<s16>::max)()),
                     static_cast<f64>((std::numeric_limits<s16>::min)())};
@@ -78,6 +83,9 @@ std::pair<f64, f64> ClampBounds(DestFormat format, bool is_signed) {
         }
     } else {
         switch (format) {
+        case DestFormat::I8:
+            return {static_cast<f64>((std::numeric_limits<u8>::max)()),
+                    static_cast<f64>((std::numeric_limits<u8>::min)())};
         case DestFormat::I16:
             return {static_cast<f64>((std::numeric_limits<u16>::max)()),
                     static_cast<f64>((std::numeric_limits<u16>::min)())};
