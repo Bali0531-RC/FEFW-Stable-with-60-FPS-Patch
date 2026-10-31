@@ -28,7 +28,9 @@ WHAT'S NEW IN THIS BUILD
 
 SETUP
 -----
-1. Unzip anywhere and run eden.exe. The Visual C++ runtime is included.
+1. Extract into a new folder and run eden.exe. The Visual C++ runtime is included.
+   Keep the included user folder beside eden.exe for portable mode. The settings
+   below are already configured, including Bilinear scaling and SMAA.
 2. Install your keys and firmware, and add your game folder, as usual.
 3. Settings (Emulation > Configure):
      System > System:      Memory Layout = 12GB DRAM (Unsafe)
@@ -44,9 +46,11 @@ SETUP
                            Enable asynchronous shader compilation = on
      General > Debug:      Enable Auto-Stub = on (required, or the game stops at boot)
 
-This build uses the same settings folder as any other Eden install
-(%APPDATA%\eden). Back up %APPDATA%\eden\config first if you also use another
-Eden build.
+This portable build stores its configuration and data in user beside eden.exe.
+It does not automatically load your existing %APPDATA%\eden data. To retain your
+own keys, firmware and saves, close both builds and copy the keys and nand folders
+from the old data folder into the new user folder. Keep the supplied user/config
+to use the new preset. See user/README.txt for details.
 
 
 KNOWN ISSUES
@@ -70,7 +74,7 @@ Please play normally, including cutscenes and several battles, and report:
   shader cache, or changes in sharpness and temporal smearing
 
 With each report, send the log file:
-    %APPDATA%\eden\log\eden_log.txt
+    user\log\eden_log.txt (inside the extracted folder)
 Copy it right after the problem: it is overwritten on the next launch (the
 previous one is kept as eden_log.txt.old.txt). Also mention your GPU and driver
 version.
