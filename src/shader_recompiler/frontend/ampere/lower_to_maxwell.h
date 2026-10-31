@@ -38,23 +38,6 @@ inline bool LowerGroupDisabled(std::string_view group) {
     return false;
 }
 
-// EDEN_NATIVE_LOWER_ENABLE=<group>[,<group>...] turns on lowering fixes that are off by default.
-// Groups: audit_fsel (FSEL operand neg/abs, suspected of changing FastFusion colours).
-inline bool LowerGroupEnabled(std::string_view group) {
-    static const std::string list = [] {
-        const char* value = std::getenv("EDEN_NATIVE_LOWER_ENABLE");
-        return std::string{value ? value : ""};
-    }();
-    std::string_view rest = list;
-    while (!rest.empty()) {
-        const size_t comma = rest.find(',');
-        if (rest.substr(0, comma) == group) return true;
-        if (comma == std::string_view::npos) break;
-        rest.remove_prefix(comma + 1);
-    }
-    return false;
-}
-
 struct LoweredProgram {
     std::vector<u64> instructions;
     std::vector<u32> source_instruction_offsets;
@@ -2713,9 +2696,9 @@ inline LoweredProgram LowerToMaxwell(std::span<const Instruction> code,
         }
         case 0x207: case 0x807: case 0xa07:
         case 0x208: case 0x808: case 0xa08: { // Bitwise SEL / FSEL
-            // [merge-audit-fsel] FSEL carries abs/neg on both selected operands (bits 73/72 and 62/63, as for FADD).
-            // Off by default until it is proven not to change FastFusion colours: EDEN_NATIVE_LOWER_ENABLE=audit_fsel.
-            const bool floating = (opcode & 0x1ff) == 0x8 && LowerGroupEnabled("audit_fsel");
+            // FSEL applies floating operand modifiers before selecting the result. Dropping the
+            // negation collapses procedurally generated cube vertices to the same positive corner.
+            const bool floating = (opcode & 0x1ff) == 0x8 && !LowerGroupDisabled("audit_fsel");
             const u32 a = operand(0, floating), b = operand(1, floating);
             emit(base(0x5ca0000000000000ULL) | (u64{a} << 8) | (u64{b} << 20) |
                 (u64{insn.Bits(87, 3)} << 39) | (u64{insn.Bits(90, 1)} << 42));

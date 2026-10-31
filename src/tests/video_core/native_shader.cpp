@@ -9486,6 +9486,62 @@ TEST_CASE("Native calls accept a callee containing only return setup and return"
     REQUIRE_FALSE(Shader::Ampere::LowerToMaxwell(bypass));
 }
 
+TEST_CASE("Native floating selects preserve all eight procedural cube corners", "[native-shader]") {
+    std::array<Native, 4> input{};
+    for (u32 axis = 0; axis < 3; ++axis) {
+        input[axis] = Native{{(2U << 24) | ((4U + axis) << 16) | 0x7808U,
+                              std::bit_cast<u32>(1.0f), (axis << 23) | (1U << 8), 0}};
+    }
+    input.back() = VertexTransform.back();
+    Shader::ObjectPool<IR::Inst> pool;
+    IR::Block block{pool};
+    TranslateScalarNative(input, block);
+    for (u32 corner = 0; corner < 8; ++corner) {
+        ScalarNativeMachine machine;
+        machine.regs[2] = std::bit_cast<u32>(1.0f);
+        for (u32 axis = 0; axis < 3; ++axis) machine.predicates[axis] = (corner >> axis) & 1U;
+        machine.Execute(block);
+        for (u32 axis = 0; axis < 3; ++axis) {
+            const float expected = (corner & (1U << axis)) ? -1.0f : 1.0f;
+            REQUIRE(machine.regs[4 + axis] == std::bit_cast<u32>(expected));
+        }
+    }
+}
+
+TEST_CASE("Native floating selects preserve modifiers across source forms and aliases", "[native-shader]") {
+    const u32 form = GENERATE(1U, 4U, 5U);
+    const u32 destination = GENERATE(2U, 3U, 4U);
+    const u32 modifiers_a = GENERATE(0U, 1U, 2U, 3U);
+    const u32 modifiers_b = form == 4 ? 0U : GENERATE(0U, 1U, 2U, 3U);
+    const u32 source_b = form == 1 ? 3U : form == 4 ? 0xc0200000U : (3U << 22);
+    const std::array<Native, 2> input{{
+        {{(2U << 24) | (destination << 16) | 0x7008U | (form << 9),
+          source_b | ((modifiers_b & 1U) << 31) | ((modifiers_b >> 1) << 30),
+          modifiers_a << 8, 0}}, VertexTransform.back(),
+    }};
+    Shader::ObjectPool<IR::Inst> pool;
+    IR::Block block{pool};
+    TranslateScalarNative(input, block);
+    const auto modified = [](u32 value, u32 modifiers) {
+        if (modifiers & 2U) value &= 0x7fffffffU;
+        if (modifiers & 1U) value ^= 0x80000000U;
+        return value;
+    };
+    for (bool selected : {false, true}) {
+        for (u32 a : {0x3f800000U, 0xbf800000U, 0x80000000U, 0x7fc01234U}) {
+            ScalarNativeMachine machine;
+            machine.regs[2] = a;
+            machine.regs[3] = 0xc0200000U;
+            machine.constants[u64{3} << 32] = 0xc0200000U;
+            machine.predicates[0] = selected;
+            machine.Execute(block);
+            const u32 expected = selected ? modified(a, modifiers_a)
+                                          : modified(0xc0200000U, modifiers_b);
+            REQUIRE(machine.regs[destination] == expected);
+        }
+    }
+}
+
 TEST_CASE("Native uniform low-word register shifts wrap and preserve aliases", "[native-shader]") {
     const u32 shift = GENERATE(0U, 1U, 31U, 32U, 33U, 63U, 0xffffffffU);
     const u32 destination = GENERATE(4U, 7U, 8U);
