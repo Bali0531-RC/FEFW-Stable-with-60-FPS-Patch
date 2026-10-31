@@ -38,10 +38,10 @@ inline void Write(const std::string& path, const void* data, size_t size) {
 
 // Opt-in, bounded snapshots of the textures used by a short sequence of draws.
 inline bool BeginNativeTextureCapture() {
-    if (!NativeDrawDiagnosticsEnabled()) return false;
+    if (!NativeTextureRequestsEnabled()) return false;
     auto& state = NativeTextureCapture::GetState();
     std::error_code error;
-    if (std::filesystem::remove("native-textures.request", error)) {
+    if (NativeRequestPending() && std::filesystem::remove("native-textures.request", error)) {
         ++state.epoch;
         state.remaining_draws = 64;
         state.image_count = 0;

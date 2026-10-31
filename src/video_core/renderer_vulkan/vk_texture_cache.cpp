@@ -13,7 +13,10 @@
 #include <utility>
 #include <vector>
 #include <boost/container/small_vector.hpp>
+#include <atomic>
 #include <bit>
+#include <cstdlib>
+#include <cstring>
 #include <numeric>
 #include "common/bit_util.h"
 #include "common/settings.h"
@@ -2815,12 +2818,29 @@ Sampler::Sampler(TextureCacheRuntime& runtime, const Tegra::Texture::TSCEntry& t
     border_color = tsc.BorderColor();
     srgb_border_color = tsc.SrgbBorderColor();
 
-    const f32 max_anisotropy = std::clamp(tsc.MaxAnisotropy(), 1.0f, 16.0f);
+    f32 max_anisotropy = std::clamp(tsc.MaxAnisotropy(), 1.0f, 16.0f);
     default_anisotropy = static_cast<f32>(1U << tsc.max_anisotropy);
 
-    const VkFilter mag_filter{MaxwellToVK::Sampler::Filter(tsc.mag_filter)};
-    const VkFilter min_filter{MaxwellToVK::Sampler::Filter(tsc.min_filter)};
-    const VkSamplerMipmapMode mipmap_mode{MaxwellToVK::Sampler::MipmapMode(tsc.mipmap_filter)};
+    VkFilter mag_filter{MaxwellToVK::Sampler::Filter(tsc.mag_filter)};
+    VkFilter min_filter{MaxwellToVK::Sampler::Filter(tsc.min_filter)};
+    VkSamplerMipmapMode mipmap_mode{MaxwellToVK::Sampler::MipmapMode(tsc.mipmap_filter)};
+
+    // EDEN_NX2_FORCE_FILTER=linear|point overrides the guest sampler to bisect texture-quality
+    // problems such as aliased UI art. "linear" also drops the LOD clamp, so mipmaps are used even
+    // where the guest asked for none; "point" forces nearest everywhere. Unset leaves it untouched.
+    const char* const force_filter{std::getenv("EDEN_NX2_FORCE_FILTER")};
+    const bool forced_filter{force_filter != nullptr};
+    const bool force_point{forced_filter && (std::strcmp(force_filter, "point") == 0 ||
+                                             std::strcmp(force_filter, "nearest") == 0)};
+    if (forced_filter) {
+        mag_filter = force_point ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
+        min_filter = force_point ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
+        mipmap_mode = force_point ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        // Vulkan requires linear min/mag filters whenever anisotropy is enabled.
+        if (force_point) {
+            max_anisotropy = 1.0f;
+        }
+    }
 
     const VkSamplerAddressMode wrap_u{
         MaxwellToVK::Sampler::WrapMode(device, tsc.wrap_u, tsc.mag_filter)};
@@ -2862,6 +2882,11 @@ Sampler::Sampler(TextureCacheRuntime& runtime, const Tegra::Texture::TSCEntry& t
         min_lod = tsc.MinLod();
         max_lod = tsc.MaxLod();
     }
+    if (forced_filter) {
+        // Test whether the guest's LOD clamp is what leaves minified art on mip 0.
+        min_lod = 0.0f;
+        max_lod = VK_LOD_CLAMP_NONE;
+    }
     base_ci = VkSamplerCreateInfo{
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .pNext = nullptr,
@@ -2882,6 +2907,16 @@ Sampler::Sampler(TextureCacheRuntime& runtime, const Tegra::Texture::TSCEntry& t
         .borderColor = VK_BORDER_COLOR_FLOAT_CUSTOM_EXT,
         .unnormalizedCoordinates = VK_FALSE,
     };
+    if (std::getenv("EDEN_NX2_SAMPLER_DIAGNOSTICS") != nullptr) {
+        static std::atomic<u32> logged{};
+        if (logged.fetch_add(1) < 64) {
+            LOG_INFO(Render_Vulkan,
+                     "sampler: mag={} min={} mip={} lod=[{}, {}] bias={} aniso={} forced={}",
+                     static_cast<u32>(base_ci.magFilter), static_cast<u32>(base_ci.minFilter),
+                     static_cast<u32>(base_ci.mipmapMode), base_ci.minLod, base_ci.maxLod,
+                     base_ci.mipLodBias, base_ci.maxAnisotropy, forced_filter);
+        }
+    }
     variants.reserve(1);
     Emplace(VariantKey{});
 }
