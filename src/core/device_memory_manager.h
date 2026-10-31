@@ -163,6 +163,8 @@ private:
         return static_cast<PAddr>(reinterpret_cast<uintptr_t>(ptr) - physical_base);
     }
 
+    void CutContinuityAt(size_t page);
+
     void WalkBlock(const DAddr addr, const std::size_t size, auto on_unmapped, auto on_memory,
                    auto increment);
 

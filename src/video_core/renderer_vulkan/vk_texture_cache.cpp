@@ -2085,6 +2085,11 @@ void Image::DownloadMemory(VkBuffer buffer, size_t offset,
 
 void Image::DownloadMemory(std::span<VkBuffer> buffers_span, std::span<size_t> offsets_span,
                             std::span<const VideoCommon::BufferImageCopy> copies) {
+    if (!original_image) {
+        LOG_CRITICAL(Render_Vulkan, "Missing image at download: gpu={:#x}, cpu={:#x}, type={}, format={}, flags={:#x}, size={}, dimensions={}x{}",
+                     gpu_addr, cpu_addr, static_cast<u32>(info.type), static_cast<u32>(info.format),
+                     static_cast<u32>(flags), unswizzled_size_bytes, info.size.width, info.size.height);
+    }
     const bool is_rescaled = True(flags & ImageFlagBits::Rescaled);
     if (is_rescaled) {
         ScaleDown();
@@ -2601,6 +2606,7 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
         break;
     case VideoCommon::ImageViewType::Cube:
     case VideoCommon::ImageViewType::CubeArray:
+        create(TextureType::Color2D, 1);
         create(TextureType::ColorCube, 6);
         create(TextureType::ColorArrayCube, std::nullopt);
         break;
@@ -2633,6 +2639,40 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::NullImageV
 
     null_image = MakeImage(*device, runtime.memory_allocator, info, {});
     image_handle = *null_image;
+    // Without nullDescriptor this stand-in image is what guest "null texture" reads sample. Fresh
+    // memory is not guaranteed zero, so clear it (EDEN_NULL_TEXTURE_VALUE overrides, for tests).
+    {
+        static const float value = [] {
+            const char* text = std::getenv("EDEN_NULL_TEXTURE_VALUE");
+            return text ? static_cast<float>(std::atof(text)) : 0.0f;
+        }();
+        runtime.scheduler.RequestOutsideRenderPassOperationContext();
+        runtime.scheduler.Record([image = *null_image](vk::CommandBuffer cmdbuf) {
+            const VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS,
+                                                0, VK_REMAINING_ARRAY_LAYERS};
+            VkImageMemoryBarrier barrier{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .srcAccessMask = 0,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = image,
+                .subresourceRange = range,
+            };
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                                   barrier);
+            const VkClearColorValue color{.float32 = {value, value, value, value}};
+            cmdbuf.ClearColorImage(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, color, range);
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
+                                   barrier);
+        });
+    }
     for (u32 i = 0; i < Shader::NUM_TEXTURE_TYPES; i++) {
         image_views[i] = MakeView(VK_FORMAT_A8B8G8R8_UNORM_PACK32, VK_IMAGE_ASPECT_COLOR_BIT);
     }

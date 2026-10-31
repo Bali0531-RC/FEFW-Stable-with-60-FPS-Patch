@@ -43,6 +43,11 @@ class MultiRangeBufferCache final {
 public:
     static constexpr VkDeviceSize DEFAULT_BLOCK_SIZE = 64 * 1024;
     static constexpr size_t MAX_RETIRED = 256;
+    /// Retired gather buffers stay alive until the GPU is done with them. Geometry churn (e.g. the
+    /// buffer cache growing a stream buffer) can retire hundreds of ~15 MiB buffers in one frame;
+    /// unbounded, that overflows the device-local budget and VMA silently places new buffers in
+    /// system memory, where every later dispatch reads them across PCIe.
+    static constexpr VkDeviceSize MAX_RETIRED_BYTES = 256ULL << 20;
 
     explicit MultiRangeBufferCache(const Device& device);
 
@@ -67,6 +72,7 @@ private:
         SparseBuffer handle;
         vk::Buffer gathered;
         u64 tick{};
+        VkDeviceSize bytes{};
     };
 
     struct Entry {
@@ -98,6 +104,7 @@ private:
 
     ::Common::unordered_map<u64, Entry> entries;
     boost::container::static_vector<Retired, MAX_RETIRED> retired;
+    VkDeviceSize retired_bytes{};
     u32 sparse_memory_type_bits{};
     VkBufferUsageFlags sparse_usage{};
 };

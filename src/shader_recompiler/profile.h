@@ -105,6 +105,7 @@ struct Profile {
     bool has_broken_spirv_subgroup_mask_vector_extract_dynamic{};
     bool has_broken_spirv_subgroup_shuffle{};
     u32 max_subgroup_size{};
+    bool prefer_subgroup_ballot_reduction{};
 
     u32 gl_max_compute_smem_size{};
 
@@ -113,6 +114,11 @@ struct Profile {
 
     u64 min_ssbo_alignment{};
     u32 max_user_clip_distances{};
+
+    bool UseSubgroupBallotReduction() const {
+        return prefer_subgroup_ballot_reduction && !warp_size_potentially_larger_than_guest &&
+               max_subgroup_size == 32;
+    }
 
     bool SupportsSubgroupStage(Stage stage) const {
         return (supported_subgroup_stages & (1u << static_cast<u32>(stage))) != 0;

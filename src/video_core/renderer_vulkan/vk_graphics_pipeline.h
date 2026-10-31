@@ -10,6 +10,7 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <cstdlib>
 #include <mutex>
 #include <type_traits>
 #include <vector>
@@ -91,6 +92,23 @@ public:
         return fragment_has_color0_output;
     }
 
+    u32 FragmentStoreMask() const noexcept {
+        return fragment_store_mask;
+    }
+
+    /// Color targets this pipeline may write. The guest GPU leaves render targets that the
+    /// fragment shader does not output untouched, while Vulkan leaves their contents undefined
+    /// (NVIDIA overwrites them), so unwritten targets get a zero write mask.
+    /// EDEN_ALLOW_UNWRITTEN_RT_WRITES restores the old behaviour for comparison.
+    u32 WrittenColorTargets() const noexcept {
+        static const bool allow_unwritten = std::getenv("EDEN_ALLOW_UNWRITTEN_RT_WRITES") != nullptr;
+        return allow_unwritten ? 0xff : fragment_store_mask;
+    }
+
+    size_t PipelineHash() const noexcept {
+        return key.Hash();
+    }
+
     bool SupportsAlphaToOne() const noexcept {
         return fragment_has_color0_output;
     }
@@ -169,6 +187,7 @@ private:
     size_t num_image_elements{};
     u32 num_textures{};
     bool fragment_has_color0_output{};
+    u32 fragment_store_mask{0xff};
 
     vk::DescriptorSetLayout descriptor_set_layout;
     DescriptorAllocator descriptor_allocator;

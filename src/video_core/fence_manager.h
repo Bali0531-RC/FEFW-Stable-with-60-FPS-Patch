@@ -7,7 +7,9 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <functional>
@@ -16,6 +18,7 @@
 #include <queue>
 
 #include "common/common_types.h"
+#include "common/timeline.h"
 #include "common/settings.h"
 #include "common/thread.h"
 #include "video_core/delayed_destruction_ring.h"
@@ -71,7 +74,35 @@ public:
         uncommitted_operations.emplace_back(std::move(func));
     }
 
+    /// With the default fence behaviour the operation runs immediately and the backend fence only
+    /// drives the asynchronous flushes. Each fence costs a queue submit, and a game that releases a
+    /// semaphore after every tiny dispatch then spends its frame in vkQueueSubmit, so the fence is
+    /// deferred to the end of the command list (or to the next regular fence) instead.
+    /// EDEN_NO_FENCE_COALESCING=1 restores one fence per signal.
+    void SignalFenceCoalesced(std::function<void()>&& func) {
+        static const bool disabled = std::getenv("EDEN_NO_FENCE_COALESCING") != nullptr;
+        const bool delay_fence = Settings::IsGPUFenceBehaviorDefault() ? Settings::IsGPULevelHigh() : Settings::IsGPUFenceBehaviorBalanced() || Settings::IsGPUFenceBehaviorAccurate();
+        if (disabled || delay_fence) {
+            SignalFence(std::move(func));
+            return;
+        }
+        func();
+        coalesced_pending = true;
+        ++coalesced_count;
+    }
+
+    /// Creates the fence that covers pending coalesced signals, if any.
+    void FlushCoalesced() {
+        if (coalesced_pending) {
+            SignalFence([] {});
+        }
+    }
+
     void SignalFence(std::function<void()>&& func) {
+        // This fence is created after every coalesced signal, so it covers them.
+        coalesced_pending = false;
+        coalesced_count = 0;
+        last_coalesced_fence = std::chrono::steady_clock::now();
         const bool delay_fence = Settings::IsGPUFenceBehaviorDefault() ? Settings::IsGPULevelHigh() : Settings::IsGPUFenceBehaviorBalanced() || Settings::IsGPUFenceBehaviorAccurate();
         const bool should_flush = ShouldFlush();
         if constexpr (!can_async_check) {
@@ -108,6 +139,14 @@ public:
     }
 
     void WaitPendingFences([[maybe_unused]] bool force) {
+        if (coalesced_pending) {
+            // Every list end would otherwise cost a fence and a submit; sync points and the
+            // regular fences cover whatever is still pending when they arrive.
+            const auto now = std::chrono::steady_clock::now();
+            if (force || coalesced_count >= 256 || now - last_coalesced_fence >= std::chrono::milliseconds{4}) {
+                SignalFence([] {});
+            }
+        }
         if constexpr (!can_async_check) {
             TryReleasePendingFences<true>();
         } else {
@@ -123,9 +162,11 @@ public:
                 wait_cv.notify_all();
             });
             SignalFence(std::move(func));
+            Common::Timeline::Mark("fence_wait_b", 0, reinterpret_cast<u64>(EDEN_RETURN_ADDRESS()));
             std::unique_lock lk(wait_mutex);
             wait_cv.wait(
                 lk, [&wait_finished] { return wait_finished.load(std::memory_order_relaxed); });
+            Common::Timeline::Mark("fence_wait_e");
         }
     }
 
@@ -215,6 +256,7 @@ private:
                 WaitFence(current_fence);
             }
             PopAsyncFlushes();
+            Common::Timeline::Mark("fence_release", current_operations.size());
             for (auto& operation : current_operations) {
                 operation();
             }
@@ -255,6 +297,9 @@ private:
         query_cache.CommitAsyncFlushes();
     }
 
+    bool coalesced_pending{};
+    u32 coalesced_count{};
+    std::chrono::steady_clock::time_point last_coalesced_fence{std::chrono::steady_clock::now()};
     std::queue<TFence> fences;
     std::deque<std::function<void()>> uncommitted_operations;
     std::deque<std::deque<std::function<void()>>> pending_operations;

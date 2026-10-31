@@ -116,8 +116,17 @@ public:
 
     [[nodiscard]] ComputePipeline* CurrentComputePipeline();
 
+    /// Diagnostic: a second build of the current compute shader with the given frontend
+    /// (Shader::Ampere::FrontendMode as int); never written to the disk cache.
+    [[nodiscard]] ComputePipeline* CurrentTwinComputePipeline(int frontend_mode);
+
     void LoadDiskResources(u64 title_id, std::stop_token stop_loading,
                            const VideoCore::DiskResourceLoadCallback& callback);
+
+    /// True (once) when the last null pipeline was withheld because it is still being built asynchronously.
+    [[nodiscard]] bool TakeDeferredDraw() noexcept {
+        return std::exchange(draw_deferred, false);
+    }
 
 private:
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipelineSlowPath();
@@ -157,6 +166,7 @@ private:
     BufferCache& buffer_cache;
     TextureCache& texture_cache;
     VideoCore::ShaderNotify& shader_notify;
+    mutable bool draw_deferred{};
     bool use_asynchronous_shaders{};
     bool use_vulkan_pipeline_cache{};
 

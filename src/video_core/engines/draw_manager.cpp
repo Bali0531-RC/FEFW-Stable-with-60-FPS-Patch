@@ -4,12 +4,17 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "video_core/native_diagnostics.h"
 #include <cstring>
+#include <fstream>
+#include <cstdlib>
+#include <set>
 
 #include "common/settings.h"
 #include "video_core/dirty_flags.h"
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/rasterizer_interface.h"
+#include "video_core/memory_manager.h"
 
 namespace Tegra::Engines {
 
@@ -78,6 +83,33 @@ void Maxwell3D::DrawManager::DrawDeferred(Maxwell3D& maxwell3d) {
     }
     DrawEnd(maxwell3d, draw_state.instance_count + 1, true);
     draw_state.instance_count = 0;
+}
+
+bool Maxwell3D::DrawManager::IsInstanceLoopMethod(u32 method) noexcept {
+    switch (method) {
+    case MAXWELL3D_REG_INDEX(draw.begin):
+    case MAXWELL3D_REG_INDEX(draw.end):
+    case MAXWELL3D_REG_INDEX(vertex_buffer.first):
+    case MAXWELL3D_REG_INDEX(vertex_buffer.count):
+    case MAXWELL3D_REG_INDEX(index_buffer.first):
+    case MAXWELL3D_REG_INDEX(index_buffer.count):
+    case MAXWELL3D_REG_INDEX(index_buffer32_first):
+    case MAXWELL3D_REG_INDEX(index_buffer16_first):
+    case MAXWELL3D_REG_INDEX(index_buffer8_first):
+    case MAXWELL3D_REG_INDEX(index_buffer32_subsequent):
+    case MAXWELL3D_REG_INDEX(index_buffer16_subsequent):
+    case MAXWELL3D_REG_INDEX(index_buffer8_subsequent):
+    case MAXWELL3D_REG_INDEX(draw_inline_index):
+    case MAXWELL3D_REG_INDEX(inline_index_2x16.count):
+    case MAXWELL3D_REG_INDEX(inline_index_2x16.even):
+    case MAXWELL3D_REG_INDEX(inline_index_4x8.count):
+    case MAXWELL3D_REG_INDEX(inline_index_4x8.index0):
+    case MAXWELL3D_REG_INDEX(vertex_array_instance_first):
+    case MAXWELL3D_REG_INDEX(vertex_array_instance_subsequent):
+        return true;
+    default:
+        return false;
+    }
 }
 
 void Maxwell3D::DrawManager::DrawArray(Maxwell3D& maxwell3d, Maxwell3D::Regs::PrimitiveTopology topology, u32 vertex_first, u32 vertex_count, u32 base_instance, u32 num_instances) {
@@ -277,6 +309,45 @@ void Maxwell3D::DrawManager::ProcessDraw(Maxwell3D& maxwell3d, bool draw_indexed
     LOG_TRACE(HW_GPU, "called, topology={}, count={}", draw_state.topology, draw_indexed ? draw_state.index_buffer.count : draw_state.vertex_buffer.count);
     UpdateTopology(maxwell3d);
     if (maxwell3d.ShouldExecute()) {
+        auto& native = maxwell3d.GetNativeMacroEngine();
+        if (native.native_turing) {
+            const auto count = draw_indexed ? draw_state.index_buffer.count : draw_state.vertex_buffer.count;
+            if (!count || !instance_count) return;
+            if (native.native_execution_failed) return;
+            if (Settings::values.renderer_backend.GetValue() != Settings::RendererBackend::Vulkan) {
+                native.native_execution_failed = true;
+                LOG_ERROR(HW_GPU, "Native graphics shaders require the experimental Vulkan path");
+                return;
+            }
+            if (VideoCommon::NativeDrawDiagnosticsEnabled()) {
+                static thread_local std::set<std::array<GPUVAddr, Maxwell3D::Regs::MaxShaderProgram>> captured;
+                std::array<GPUVAddr, Maxwell3D::Regs::MaxShaderProgram> programs{};
+                for (size_t stage = 0; stage < programs.size(); ++stage) {
+                    if (!maxwell3d.regs.IsShaderConfigEnabled(stage)) continue;
+                    const auto& pipeline = maxwell3d.regs.pipelines[stage];
+                    programs[stage] = (GPUVAddr{pipeline.reserved[0] & 0xff} << 32) | pipeline.reserved[1];
+                }
+                if (captured.size() < 4096 && captured.insert(programs).second) {
+                    std::ofstream registers("native-graphics-registers.bin", std::ios::binary);
+                    registers.write(reinterpret_cast<const char*>(&maxwell3d.regs), sizeof(maxwell3d.regs));
+                    for (size_t stage = 0; stage < Maxwell3D::Regs::MaxShaderProgram; ++stage) {
+                        if (!maxwell3d.regs.IsShaderConfigEnabled(stage)) continue;
+                        const auto& pipeline = maxwell3d.regs.pipelines[stage];
+                        // C797 uses per-stage program addresses at 0x2014/0x2018,
+                        // unlike Maxwell's program-region plus 0x2004 offset.
+                        const GPUVAddr address = (GPUVAddr{pipeline.reserved[0] & 0xff} << 32) | pipeline.reserved[1];
+                        LOG_INFO(HW_GPU, "Native graphics shader stage={}, address={:#x}", stage, address);
+                        if (!maxwell3d.memory_manager.IsFullyMappedRange(address, 0x1000)) continue;
+                        std::array<u8, 0x1000> bytes{};
+                        maxwell3d.memory_manager.ReadBlockUnsafe(address, bytes.data(), bytes.size());
+                        std::ofstream shader("native-graphics-shader-" + std::to_string(stage) + ".bin", std::ios::binary);
+                        shader.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+                    }
+                    LOG_DEBUG(HW_GPU, "Translating native graphics draw: indexed={}, vertices={}, instances={}",
+                              draw_indexed, count, instance_count);
+                }
+            }
+        }
         maxwell3d.rasterizer->Draw(draw_indexed, instance_count);
     }
 }
@@ -285,6 +356,12 @@ void Maxwell3D::DrawManager::ProcessDrawIndirect(Maxwell3D& maxwell3d) {
     LOG_TRACE(HW_GPU, "called, topology={}, is_indexed={}, includes_count={}, buffer_size={}, max_draw_count={}", draw_state.topology, indirect_state.is_indexed, indirect_state.include_count, indirect_state.buffer_size, indirect_state.max_draw_counts);
     UpdateTopology(maxwell3d);
     if (maxwell3d.ShouldExecute()) {
+        auto& native = maxwell3d.GetNativeMacroEngine();
+        if (native.native_turing) {
+            native.native_execution_failed = true;
+            LOG_ERROR(HW_GPU, "Native graphics shader translation required: indirect draw");
+            return;
+        }
         maxwell3d.rasterizer->DrawIndirect();
     }
 }

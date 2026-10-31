@@ -542,6 +542,12 @@ void RewriteOpcodes(std::vector<u32>& code, std::span<const std::pair<u32, spv::
             const auto it{std::ranges::find(rewrites, code[offset + 2],
                                             &std::pair<u32, spv::Op>::first)};
             if (it != rewrites.end()) {
+                if (it->second == spv::Op::OpGroupNonUniformBitwiseOr) {
+                    ASSERT(opcode == spv::Op::OpGroupNonUniformShuffleXor && word_count == 6);
+                    const u32 value{code[offset + 4]};
+                    code[offset + 4] = static_cast<u32>(spv::GroupOperation::Reduce);
+                    code[offset + 5] = value;
+                }
                 code[offset] = (code[offset] & 0xFFFF0000u) | static_cast<u32>(it->second);
             }
         }

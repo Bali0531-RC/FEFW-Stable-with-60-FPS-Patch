@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <array>
 
 #include <boost/container/static_vector.hpp>
@@ -91,6 +92,7 @@ public:
     void DrawTexture() override;
     void Clear(u32 layer_count) override;
     void DispatchCompute() override;
+    void DispatchComputeImpl(int twin_frontend_mode);
     void ResetCounter(VideoCommon::QueryType type) override;
     void Query(GPUVAddr gpu_addr, VideoCommon::QueryType type,
                VideoCommon::QueryPropertiesFlags flags, u32 payload, u32 subreport) override;
@@ -112,6 +114,9 @@ public:
     void UnmapMemory(DAddr addr, u64 size) override;
     void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size) override;
     void SignalFence(std::function<void()>&& func) override;
+    void SignalFenceCoalesced(std::function<void()>&& func) override;
+    void FlushCommandsBatched() override;
+    void OnGpuThreadIdle() override;
     void SyncOperation(std::function<void()>&& func) override;
     void SignalSyncPoint(u32 value) override;
     void SignalReference() override;
@@ -230,6 +235,8 @@ private:
     boost::container::static_vector<VkSampler, MAX_TEXTURES> sampler_handles;
 
     u32 draw_counter = 0;
+    std::chrono::steady_clock::time_point last_list_flush{};
+    u32 last_written_color_targets = 0xff;
 };
 
 } // namespace Vulkan

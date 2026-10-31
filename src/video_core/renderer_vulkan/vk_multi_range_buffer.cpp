@@ -172,10 +172,12 @@ void MultiRangeBufferCache::RetireEntry(Scheduler& scheduler, Entry& entry) {
     if (!entry.sparse_handle && !entry.gathered) {
         return;
     }
-    if (retired.size() == retired.capacity()) {
+    const VkDeviceSize bytes = entry.gathered ? entry.size : 0;
+    if (retired.size() == retired.capacity() || retired_bytes + bytes > MAX_RETIRED_BYTES) {
         DrainRetired(scheduler);
     }
-    if (retired.size() == retired.capacity()) {
+    while (!retired.empty() &&
+           (retired.size() == retired.capacity() || retired_bytes + bytes > MAX_RETIRED_BYTES)) {
         u64 oldest = retired.front().tick;
         for (const Retired& item : retired) {
             if (item.tick < oldest) {
@@ -185,10 +187,12 @@ void MultiRangeBufferCache::RetireEntry(Scheduler& scheduler, Entry& entry) {
         scheduler.Wait(oldest);
         DrainRetired(scheduler);
     }
+    retired_bytes += bytes;
     retired.push_back(Retired{
         .handle = std::move(entry.sparse_handle),
         .gathered = std::move(entry.gathered),
         .tick = scheduler.CurrentTick(),
+        .bytes = bytes,
     });
 }
 
@@ -196,6 +200,7 @@ void MultiRangeBufferCache::DrainRetired(Scheduler& scheduler) {
     size_t index = 0;
     while (index < retired.size()) {
         if (scheduler.IsFree(retired[index].tick)) {
+            retired_bytes -= retired[index].bytes;
             if (index + 1 != retired.size()) {
                 retired[index] = std::move(retired.back());
             }

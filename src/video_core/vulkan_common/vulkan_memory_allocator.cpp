@@ -5,6 +5,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <atomic>
+#include <cstdlib>
+#if defined(__linux__)
+#include <execinfo.h>
+#endif
 #include <bit>
 #include <limits>
 #include <optional>
@@ -26,6 +31,44 @@
 #include "common/settings.h"
 
 namespace Vulkan {
+
+namespace {
+/// Warns when an allocation that prefers device-local memory lands elsewhere (VMA silently picks
+/// another memory type once the device-local heap is over budget). Placement in system memory
+/// makes every GPU access to it cross PCIe.
+void CheckPlacement(VmaAllocator allocator, VmaAllocation allocation, VkDeviceSize size,
+                    const char* kind) {
+    VkMemoryPropertyFlags flags{};
+    vmaGetAllocationMemoryProperties(allocator, allocation, &flags);
+    if (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+        return;
+    }
+    static std::atomic<u32> count{};
+    static std::atomic<u64> bytes{};
+    const u32 n = ++count;
+    const u64 total = bytes += size;
+    if (n <= 64 || std::has_single_bit(n)) {
+        VmaBudget budgets[VK_MAX_MEMORY_HEAPS]{};
+        vmaGetHeapBudgets(allocator, budgets);
+        LOG_WARNING(Render_Vulkan,
+                    "Device-local {} placed in non-device-local memory: size={} flags={:#x} "
+                    "(n={}, total={} MiB; heap0 usage={} MiB budget={} MiB)",
+                    kind, size, flags, n, total >> 20, budgets[0].usage >> 20,
+                    budgets[0].budget >> 20);
+#if defined(__linux__)
+        if (n <= 4) {
+            void* frames[12];
+            const int depth = backtrace(frames, 12);
+            char** names = backtrace_symbols(frames, depth);
+            for (int i = 1; names && i < depth; ++i) {
+                LOG_WARNING(Render_Vulkan, "  placement caller {}: {}", i, names[i]);
+            }
+            std::free(names);
+        }
+#endif
+    }
+}
+} // namespace
 namespace {
 
 // Helpers translating MemoryUsage to flags/usage
@@ -222,6 +265,7 @@ vk::Image MemoryAllocator::CreateImage(const VkImageCreateInfo &ci) const
     VmaAllocation allocation{};
     VmaAllocationInfo alloc_info{};
     vk::Check(vmaCreateImage(allocator, &ci, &alloc_ci, &handle, &allocation, &alloc_info));
+    CheckPlacement(allocator, allocation, alloc_info.size, "image");
 
     // Log GPU memory allocation for images
     if (GPU::Logging::IsActive() &&
@@ -258,8 +302,16 @@ vk::Buffer MemoryAllocator::CreateBuffer(const VkBufferCreateInfo &ci, MemoryUsa
     VmaAllocation allocation{};
     VkMemoryPropertyFlags property_flags{};
 
-    vk::Check(vmaCreateBuffer(allocator, &ci, &alloc_ci, &handle, &allocation, &alloc_info));
+    const VkResult result = vmaCreateBuffer(allocator, &ci, &alloc_ci, &handle, &allocation, &alloc_info);
+    if (result != VK_SUCCESS) {
+        LOG_CRITICAL(Render_Vulkan, "Buffer allocation failed: bytes={}, usage={}, buffer_flags={:#x}, result={}",
+                     ci.size, static_cast<u32>(usage), ci.usage, static_cast<s32>(result));
+    }
+    vk::Check(result);
     vmaGetAllocationMemoryProperties(allocator, allocation, &property_flags);
+    if (usage == MemoryUsage::DeviceLocal) {
+        CheckPlacement(allocator, allocation, alloc_info.size, "buffer");
+    }
 
     // Log GPU memory allocation for buffers
     if (GPU::Logging::IsActive() &&
@@ -317,6 +369,9 @@ vk::Buffer MemoryAllocator::CreateBuffer(const VkBufferCreateInfo &ci, MemoryUsa
     vk::Check(vmaCreateBufferWithAlignment(allocator, &ci, &alloc_ci, min_alignment, &handle,
                                            &allocation, &alloc_info));
     vmaGetAllocationMemoryProperties(allocator, allocation, &property_flags);
+    if (usage == MemoryUsage::DeviceLocal) {
+        CheckPlacement(allocator, allocation, alloc_info.size, "buffer");
+    }
 
     u8 *data = reinterpret_cast<u8 *>(alloc_info.pMappedData);
     std::span<u8> mapped_data{};
@@ -364,6 +419,9 @@ MemoryCommit MemoryAllocator::Commit(const VkMemoryRequirements &reqs, MemoryUsa
     }
 
     vk::Check(res);
+    if (usage == MemoryUsage::DeviceLocal) {
+        CheckPlacement(allocator, a, info.size, "commit");
+    }
     return MemoryCommit(allocator, a, info);
 }
 

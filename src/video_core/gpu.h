@@ -145,6 +145,9 @@ public:
 
     /// Flush all current written commands into the host GPU for execution.
     void FlushCommands();
+
+    /// Flush at the end of a guest command list; the backend may batch small lists.
+    void FlushCommandsBatched();
     /// Synchronizes CPU writes with Host GPU memory.
     void InvalidateGPUCache();
     /// Signal the ending of command list.

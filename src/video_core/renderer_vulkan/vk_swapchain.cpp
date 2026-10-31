@@ -179,29 +179,38 @@ bool Swapchain::AcquireNextImage() {
         break;
     }
 
-    const auto wait_with_frame_pacing = [this] {
+    // resource_ticks holds the tick that was being recorded when this image was last acquired. With
+    // asynchronous presentation this runs on the present thread, where waiting for an unsubmitted
+    // tick makes Scheduler::Wait flush the GPU thread's command chunk from the wrong thread. Wait
+    // for the last submitted tick instead; the swapchain copy does not use scheduler work.
+    u64 wait_tick = resource_ticks[image_index];
+    if (Settings::values.async_presentation.GetValue()) {
+        wait_tick = (std::min)(wait_tick, scheduler.CurrentTick() - 1);
+    }
+
+    const auto wait_with_frame_pacing = [this, wait_tick] {
     switch (Settings::values.frame_pacing_mode.GetValue()) {
     case Settings::FramePacingMode::Target_Auto:
-        scheduler.Wait(resource_ticks[image_index]);
+        scheduler.Wait(wait_tick);
         break;
     case Settings::FramePacingMode::Target_30:
-        scheduler.Wait(resource_ticks[image_index], 30.0);
+        scheduler.Wait(wait_tick, 30.0);
         break;
     case Settings::FramePacingMode::Target_60:
-        scheduler.Wait(resource_ticks[image_index], 60.0);
+        scheduler.Wait(wait_tick, 60.0);
         break;
     case Settings::FramePacingMode::Target_90:
-        scheduler.Wait(resource_ticks[image_index], 90.0);
+        scheduler.Wait(wait_tick, 90.0);
         break;
     case Settings::FramePacingMode::Target_120:
-        scheduler.Wait(resource_ticks[image_index], 120.0);
+        scheduler.Wait(wait_tick, 120.0);
         break;
     }
     };
 
 #ifdef __ANDROID__
     if (android_get_device_api_level() >= 30) {
-        scheduler.Wait(resource_ticks[image_index]);
+        scheduler.Wait(wait_tick);
     } else {
         wait_with_frame_pacing();
     }

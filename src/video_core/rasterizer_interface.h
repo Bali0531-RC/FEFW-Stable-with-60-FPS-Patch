@@ -74,6 +74,23 @@ public:
     /// Signal a GPU based semaphore as a fence
     virtual void SignalFence(std::function<void()>&& func) = 0;
 
+    /// Called by the GPU thread before it blocks on an empty queue. Work and fences held back by
+    /// FlushCommandsBatched / SignalFenceCoalesced must not wait for the next command list: a
+    /// game that waits on the display leaves the GPU thread idle between frames.
+    virtual void OnGpuThreadIdle() {}
+
+    /// Flush at the end of a guest command list. Backends may hold small batches back so a game
+    /// that submits one tiny command list per dispatch does not pay a queue submit for each.
+    virtual void FlushCommandsBatched() {
+        FlushCommands();
+    }
+
+    /// Like SignalFence, but the backend may merge several of these into one fence per command
+    /// list. Only valid for signals that do not need to be ordered against the GPU individually.
+    virtual void SignalFenceCoalesced(std::function<void()>&& func) {
+        SignalFence(std::move(func));
+    }
+
     /// Send an operation to be done after a certain amount of flushes.
     virtual void SyncOperation(std::function<void()>&& func) = 0;
 

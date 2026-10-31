@@ -4,6 +4,12 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cstdlib>
+#include "common/logging.h"
+#include "common/timeline.h"
 #include <optional>
 
 #include <boost/container/small_vector.hpp>
@@ -48,6 +54,7 @@ HardwareComposer::~HardwareComposer() = default;
 
 u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
                                     Nvidia::Devices::nvdisp_disp0& nvdisp) {
+    Common::Timeline::Mark("compose");
 #if BOOST_VERSION >= 108100 || __GNUC__ > 12
     boost::container::small_vector<HwcLayer, 2> composition_stack;
 #else //TODO: debian stable
@@ -159,6 +166,22 @@ u32 HardwareComposer::ComposeLocked(f32* out_speed_scale, Display& display,
                          [&](const HwcLayer& l, const HwcLayer& r) { return l.z_index < r.z_index; });
 
         // Composite.
+        if (std::getenv("EDEN_PRESENT_STATS")) {
+            static auto window_start = std::chrono::steady_clock::now();
+            static u32 presents{};
+            static std::array<u32, 8> intervals{};
+            ++presents;
+            ++intervals[static_cast<size_t>((std::clamp)(swap_interval.value_or(0), 0, 7))];
+            const auto now = std::chrono::steady_clock::now();
+            const double secs = std::chrono::duration<double>(now - window_start).count();
+            if (secs >= 2.0) {
+                LOG_ERROR(Service_VI, "PresentStats fps={:.1f} swap_interval_counts[0..4]={} {} {} {} {}",
+                          presents / secs, intervals[0], intervals[1], intervals[2], intervals[3], intervals[4]);
+                presents = 0;
+                intervals = {};
+                window_start = now;
+            }
+        }
         nvdisp.Composite(composition_stack);
     }
 

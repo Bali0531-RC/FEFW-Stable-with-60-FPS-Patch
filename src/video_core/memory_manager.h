@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <map>
 #include <mutex>
@@ -42,6 +43,11 @@ public:
                            u64 address_space_bits_ = 40, GPUVAddr split_address = 1ULL << 34,
                            u64 big_page_bits_ = 16, u64 page_bits_ = 12);
     ~MemoryManager();
+
+    void SetNativeSyncpointShim(GPUVAddr address);
+    void EnableNativeTiling() { native_tiling = true; }
+    bool UsesNativeTiling() const { return native_tiling; }
+    bool IsShuttingDown() const;
 
     static constexpr bool HAS_FLUSH_INVALIDATION = true;
 
@@ -117,6 +123,10 @@ public:
      */
     [[nodiscard]] bool IsFullyMappedRange(GPUVAddr gpu_addr, std::size_t size) const;
 
+    /// Returns how many bytes from gpu_addr (up to max_size) are mapped to one contiguous device
+    /// address range, stopping at the first unmapped page or device address discontinuity.
+    [[nodiscard]] std::size_t DeviceContiguousSize(GPUVAddr gpu_addr, std::size_t max_size) const;
+
     /**
      * Returns a vector with all the subranges of device addresses mapped beneath.
      * if the region is continuous, a single pair will be returned. If it's unmapped, an empty
@@ -178,6 +188,22 @@ private:
         GPUVAddr gpu_addr, std::size_t size,
         boost::container::small_vector<std::pair<std::conditional_t<is_gpu_address, GPUVAddr, DAddr>, std::size_t>, 32>& result) const;
 
+    std::atomic<GPUVAddr> native_syncpoint_shim{};
+
+    /// DeviceContiguousSize results, valid while mapping_generation is unchanged.
+    struct ContiguousRun {
+        GPUVAddr gpu_addr{};
+        DAddr device_addr{};
+        std::size_t size{};
+        u64 generation{};
+        bool complete{}; ///< The walk stopped at a discontinuity, not at its length limit.
+    };
+    [[nodiscard]] ContiguousRun WalkContiguousRun(GPUVAddr gpu_addr, std::size_t limit) const;
+    std::atomic<u64> mapping_generation{1};
+    mutable std::mutex contiguous_mutex;
+    mutable std::array<ContiguousRun, 32> contiguous_runs{};
+    mutable std::size_t contiguous_next{};
+
     Core::System& system;
     MaxwellDeviceMemoryManager& memory;
 
@@ -220,6 +246,7 @@ private:
     boost::container::small_vector<std::pair<DAddr, std::size_t>, 32> page_stash{};
     boost::container::small_vector<std::pair<DAddr, std::size_t>, 32> page_stash2{};
 
+    bool native_tiling{};
     mutable std::mutex guard;
 
     static constexpr size_t continuous_bits = 64;

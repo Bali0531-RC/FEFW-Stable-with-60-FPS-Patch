@@ -191,6 +191,15 @@ Id EmitSubgroupBallot(EmitContext& ctx, Id pred) {
     if (!StageSupportsSubgroups(ctx)) {
         return ctx.OpSelect(ctx.U32[1], pred, ctx.Const(1u), ctx.u32_zero_value);
     }
+    if (ctx.profile.UseSubgroupBallotReduction()) {
+        ctx.AddCapability(spv::Capability::GroupNonUniformArithmetic);
+        const Id bit{ctx.OpShiftLeftLogical(ctx.U32[1], ctx.Const(1u), GetThreadId(ctx))};
+        const Id contribution{ctx.OpSelect(ctx.U32[1], pred, bit, ctx.u32_zero_value)};
+        const Id result{ctx.OpGroupNonUniformShuffleXor(ctx.U32[1], SubgroupScope(ctx),
+                                                       contribution, ctx.u32_zero_value)};
+        ctx.opcode_rewrites.emplace_back(result.value, spv::Op::OpGroupNonUniformBitwiseOr);
+        return result;
+    }
     const Id ballot{ctx.OpGroupNonUniformBallot(ctx.U32[4], SubgroupScope(ctx), pred)};
     if (!ctx.profile.warp_size_potentially_larger_than_guest) {
         return ctx.OpCompositeExtract(ctx.U32[1], ballot, 0U);

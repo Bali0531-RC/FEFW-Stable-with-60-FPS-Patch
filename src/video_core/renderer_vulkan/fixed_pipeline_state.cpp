@@ -179,7 +179,12 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
     for (size_t i = 0; i < regs.rt.size(); ++i) {
         color_formats[i] = static_cast<u8>(regs.rt[i].format);
     }
-    alpha_test_ref = std::bit_cast<u32>(regs.alpha_test_ref);
+    // The reference only matters when the test can fail. Fortune's Weave animates the register with
+    // alpha test disabled, which otherwise creates a new pipeline for every value.
+    alpha_test_ref = test_func == Maxwell::ComparisonOp::Always_GL ||
+                             test_func == Maxwell::ComparisonOp::Always_D3D
+                         ? 0
+                         : std::bit_cast<u32>(regs.alpha_test_ref);
     point_size = std::bit_cast<u32>(regs.point_size);
 
     if (maxwell3d.dirty.flags[Dirty::VertexInput]) {

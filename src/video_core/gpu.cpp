@@ -7,12 +7,14 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <condition_variable>
 #include <list>
 #include <memory>
 #include <utility>
 
 #include "common/assert.h"
+#include "common/logging.h"
 #include "common/settings.h"
 #include "common/settings_enums.h"
 #include "core/core.h"
@@ -23,6 +25,7 @@
 #include "core/perf_stats.h"
 #include "video_core/cdma_pusher.h"
 #include "video_core/control/channel_state.h"
+#include "video_core/native_query_trace.h"
 #include "video_core/control/scheduler.h"
 #include "video_core/dma_pusher.h"
 #include "video_core/engines/fermi_2d.h"
@@ -79,6 +82,10 @@ struct GPU::Impl {
             current_channel = it->second.get();
             renderer->ReadRasterizer()->BindChannel(*current_channel);
         }
+        if (current_channel->native_abi) {
+            VideoCommon::TraceNativeQuery(17, current_channel->memory_manager->GetID(),
+                                          0, 0, 0, channel_id, 0);
+        }
     }
 
     std::shared_ptr<Control::ChannelState> AllocateChannel() {
@@ -109,6 +116,10 @@ struct GPU::Impl {
     /// Flush all current written commands into the host GPU for execution.
     void FlushCommands() {
         renderer->ReadRasterizer()->FlushCommands();
+    }
+
+    void FlushCommandsBatched() {
+        renderer->ReadRasterizer()->FlushCommandsBatched();
     }
 
     /// Synchronizes CPU writes with Host GPU memory.
@@ -265,15 +276,33 @@ struct GPU::Impl {
                 free_swap_counters.pop_front();
             }
         }
+        // Diagnostic (EDEN_NATIVE_WINDOW_TRACE): when each composite is requested, registered on
+        // the GPU thread (with the guest syncpoint value then) and executed.
+        static const bool trace = std::getenv("EDEN_NATIVE_WINDOW_TRACE") != nullptr;
+        static std::atomic<u32> trace_count{};
+        const u64 trace_id = trace ? ++composite_trace_id : 0;
+        const bool traced = trace && trace_count++ < 4096;
+        if (traced) {
+            LOG_INFO(HW_GPU, "Native composite request: id={} address={:#x} fence={}/{} guest={}", trace_id,
+                     layers.empty() ? 0 : layers.front().address, num_fences ? fences[0].id : -1,
+                     num_fences ? fences[0].value : 0,
+                     num_fences ? system.Host1x().GetSyncpointManager().GetGuestSyncpointValue(fences[0].id) : 0);
+        }
         pending_composite_fence = RequestSyncOperation(
             [this, current_request_counter, num_fences, composite_layers = std::move(layers),
-             composite_fences = std::move(fences)] {
+             composite_fences = std::move(fences), trace_id, traced] {
                 if (num_fences == 0) {
+                    if (traced) LOG_INFO(HW_GPU, "Native composite execute: id={} unfenced", trace_id);
                     renderer->Composite(composite_layers);
                     return;
                 }
                 auto& syncpoint_manager = system.Host1x().GetSyncpointManager();
-                const auto executer = [this, current_request_counter, composite_layers]() {
+                if (traced) {
+                    LOG_INFO(HW_GPU, "Native composite register: id={} fence={}/{} guest={}", trace_id,
+                             composite_fences[0].id, composite_fences[0].value,
+                             syncpoint_manager.GetGuestSyncpointValue(composite_fences[0].id));
+                }
+                const auto executer = [this, current_request_counter, composite_layers, trace_id, traced]() {
                     {
                         std::unique_lock<std::mutex> lk(request_swap_mutex);
                         if (--request_swap_counters[current_request_counter] != 0) {
@@ -281,6 +310,7 @@ struct GPU::Impl {
                         }
                         free_swap_counters.push_back(current_request_counter);
                     }
+                    if (traced) LOG_INFO(HW_GPU, "Native composite execute: id={}", trace_id);
                     renderer->Composite(composite_layers);
                 };
                 for (size_t i = 0; i < num_fences; i++) {
@@ -357,6 +387,7 @@ struct GPU::Impl {
     std::deque<size_t> request_swap_counters;
     std::mutex request_swap_mutex;
     u64 pending_composite_fence{};
+    std::atomic<u64> composite_trace_id{};
 };
 
 GPU::GPU(Core::System& system, bool is_async, bool use_nvdec)
@@ -387,6 +418,10 @@ void GPU::InitAddressSpace(Tegra::MemoryManager& memory_manager) {
 
 void GPU::BindRenderer(std::unique_ptr<VideoCore::RendererBase> renderer) {
     impl->BindRenderer(std::move(renderer));
+}
+
+void GPU::FlushCommandsBatched() {
+    impl->FlushCommandsBatched();
 }
 
 void GPU::FlushCommands() {

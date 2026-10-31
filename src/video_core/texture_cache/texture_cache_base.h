@@ -28,6 +28,7 @@
 #include <ranges>
 #include "common/scratch_buffer.h"
 #include "common/slot_vector.h"
+#include "video_core/texture_cache/pending_download.h"
 #include "common/thread_worker.h"
 #include "video_core/compatible_formats.h"
 #include "video_core/control/channel_state_cache.h"
@@ -67,6 +68,8 @@ struct AsyncDecodeContext {
     boost::container::small_vector<BufferImageCopy, 16> copies;
     std::mutex mutex;
     std::atomic_bool complete;
+    /// The image was deleted: drop the result instead of uploading it into the slot's next image.
+    bool cancelled{};
 };
 
 using TextureCacheGPUMap = ::Common::unordered_map<u64, std::vector<ImageId>, Common::IdentityHash<u64>>;
@@ -170,6 +173,10 @@ public:
     /// Fill image_view_ids with the graphics/compute images in indices
     void FillImageViews(std::span<ImageViewInOut> views, bool compute, bool blacklist = true);
 
+    bool CaptureNativeGpuTexture(std::span<const ImageViewInOut> views);
+
+    void CaptureNativeRenderTarget();
+
     /// Handle feedback loops during draws.
     void CheckFeedbackLoop(std::span<const ImageViewInOut> views);
 
@@ -261,6 +268,9 @@ public:
     std::recursive_mutex mutex;
 
 private:
+    void CaptureNativePresentationImage(ImageId image_id, PixelFormat view_format,
+                                        const char* request_path, const char* prefix_label);
+
     /// Iterate over all page indices in a range
     template <typename Func>
     static void ForEachCPUPage(DAddr addr, size_t size, Func&& func) {
@@ -332,6 +342,10 @@ private:
     [[nodiscard]] ImageId JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DAddr cpu_addr);
 
     [[nodiscard]] ImageId FindDMAImage(const ImageInfo& info, GPUVAddr gpu_addr);
+
+    /// The CPU address of an image at gpu_addr, or a stand-in fixed by the GPU address when the
+    /// range has no CPU backing (so later lookups find the same image).
+    [[nodiscard]] std::optional<DAddr> ImageCpuAddress(GPUVAddr gpu_addr, size_t size) const;
 
     /// Return a blit image pair from the given guest blit parameters
     [[nodiscard]] std::optional<BlitImages> GetBlitImages(
@@ -463,11 +477,7 @@ private:
         size_t size;
     };
 
-    struct PendingDownload {
-        bool is_swizzle;
-        size_t async_buffer_id;
-        Common::SlotId object_id;
-    };
+    using PendingDownload = PendingImageDownload<Image>;
 
     Common::SlotVector<Image> slot_images;
     Common::SlotVector<ImageMapView> slot_map_views;

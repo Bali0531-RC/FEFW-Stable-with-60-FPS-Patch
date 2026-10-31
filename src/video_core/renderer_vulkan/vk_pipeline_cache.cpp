@@ -11,6 +11,7 @@
 #include <memory>
 #include <span>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 #include <bit>
 #include <numeric>
@@ -19,6 +20,7 @@
 #include "common/fs/path_util.h"
 #include "common/thread_worker.h"
 #include "core/core.h"
+#include "shader_recompiler/frontend/ampere/native.h"
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
 #include "shader_recompiler/environment.h"
 #include "shader_recompiler/frontend/maxwell/control_flow.h"
@@ -63,7 +65,7 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-constexpr u32 CACHE_VERSION = 18;
+constexpr u32 CACHE_VERSION = 37;
 constexpr size_t VULKAN_CACHE_FLUSH_PIPELINES = 128;
 constexpr size_t VULKAN_CACHE_FLUSH_MIN_SECONDS = 30;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
@@ -493,6 +495,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_geometry_shader_passthrough = device.IsNvGeometryShaderPassthroughSupported(),
         .support_conditional_barrier = device.SupportsConditionalBarriers(),
         .single_lane_geometry_subgroups = !profile.SupportsSubgroupStage(Shader::Stage::Geometry),
+        .support_buffer_texture_handles = profile.support_sampled_image_array_nonuniform_indexing,
     };
     host_info.ApplyDescriptorLimitPolicy();
 
@@ -603,6 +606,37 @@ ComputePipeline* PipelineCache::CurrentComputePipeline() {
     return pipeline.get();
 }
 
+ComputePipeline* PipelineCache::CurrentTwinComputePipeline(int frontend_mode) {
+    const ShaderInfo* const shader{ComputeShader()};
+    if (!shader) {
+        return nullptr;
+    }
+    const auto& qmd{kepler_compute->launch_description};
+    const ComputePipelineCacheKey key{
+        .unique_hash = shader->unique_hash ^ (0x7477696e00000000ULL + static_cast<u64>(frontend_mode) + 1),
+        .shared_memory_size = qmd.shared_alloc,
+        .workgroup_size{qmd.block_dim_x, qmd.block_dim_y, qmd.block_dim_z},
+    };
+    const auto [pair, is_new]{compute_cache.try_emplace(key)};
+    if (!is_new) {
+        return pair->second.get();
+    }
+    const GPUVAddr program_base{kepler_compute->regs.code_loc.Address()};
+    Shader::Ampere::SetFrontendOverride(frontend_mode);
+    try {
+        ComputeEnvironment env{*kepler_compute, *gpu_memory, program_base, qmd.program_start};
+        // The twin's program may be sized differently from the registered one (native vs lowered).
+        env.SetCachedSize(frontend_mode == 0 ? shader->size_bytes : env.CachedSizeBytes());
+        main_pools.ReleaseContents();
+        pair->second = CreateComputePipeline(main_pools, key, env, nullptr, true);
+    } catch (...) {
+        Shader::Ampere::SetFrontendOverride(-1);
+        throw;
+    }
+    Shader::Ampere::SetFrontendOverride(-1);
+    return pair->second.get();
+}
+
 void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
                                       const VideoCore::DiskResourceLoadCallback& callback) {
     if (title_id == 0) {
@@ -636,6 +670,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         size_t built{};
         bool has_loaded{};
         std::unique_ptr<PipelineStatistics> statistics;
+        std::unordered_set<GraphicsPipelineCacheKey> graphics_keys;
+        size_t duplicates{};
     } state;
 
     if (device.IsKhrPipelineExecutablePropertiesEnabled()) {
@@ -644,6 +680,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     const auto load_compute{[&](std::ifstream& file, FileEnvironment env) {
         ComputePipelineCacheKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
+        if (env.IsStale()) {
+            return;
+        }
 
         workers.QueueWork([this, key, env_ = std::move(env), &state, &callback]() mutable {
             ShaderPools pools;
@@ -663,6 +702,19 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         GraphicsPipelineCacheKey key;
         file.read(reinterpret_cast<char*>(&key), sizeof(key));
 
+        if (std::ranges::any_of(envs, &FileEnvironment::IsStale)) {
+            return;
+        }
+        // Older caches stored the alpha reference even with the test off (see
+        // FixedPipelineState::Refresh); those keys are never requested again as stored.
+        if (key.state.alpha_test_func.Value() ==
+            FixedPipelineState::PackComparisonOp(Maxwell::ComparisonOp::Always_GL)) {
+            key.state.alpha_test_ref = 0;
+        }
+        if (!state.graphics_keys.insert(key).second) {
+            ++state.duplicates;
+            return;
+        }
         if ((key.state.extended_dynamic_state != 0) !=
                 dynamic_features.has_extended_dynamic_state ||
             (key.state.extended_dynamic_state_2 != 0) !=
@@ -714,7 +766,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     VideoCommon::LoadPipelines(stop_loading, pipeline_cache_filename, CACHE_VERSION, load_compute,
                                load_graphics);
 
-    LOG_INFO(Render_Vulkan, "Total Pipeline Count: {}", state.total);
+    LOG_INFO(Render_Vulkan, "Total Pipeline Count: {} ({} duplicate keys skipped)", state.total,
+             state.duplicates);
+    state.graphics_keys = {};
 
     std::unique_lock lock{state.mutex};
     callback(VideoCore::LoadCallbackStage::Build, 0, state.total);
@@ -796,6 +850,9 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const
     if (draw_state.index_buffer.count <= 6 || draw_state.vertex_buffer.count <= 6) {
         return pipeline;
     }
+    // The draw is dropped until the pipeline exists. Native draws are dropped on purpose here, so the
+    // rasterizer must not report them as failed native work.
+    draw_deferred = true;
     return nullptr;
 }
 
@@ -918,8 +975,13 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         ++env_index;
 
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
-        Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
-        env.Dump(hash, key.unique_hashes[index]);
+        // Rebuilding the CFG for the dump can throw the same error again; never let that escape
+        // the handler, or a single bad shader terminates the emulator instead of skipping a draw.
+        try {
+            Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
+            env.Dump(hash, key.unique_hashes[index]);
+        } catch (const Shader::Exception&) {
+        }
     }
     LOG_ERROR(Render_Vulkan, "{}", exception.what());
     return nullptr;
@@ -1001,7 +1063,11 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
                     max_shared_memory / 1024);
         program.shared_memory_size = max_shared_memory;
     }
-    const std::vector<u32> code{EmitSPIRV(profile, program)};
+    auto compute_profile = profile;
+    compute_profile.prefer_subgroup_ballot_reduction =
+        env.HasNativeRegisterCopies() && device.IsNvidia() &&
+        device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_ARITHMETIC_BIT);
+    const std::vector<u32> code{EmitSPIRV(compute_profile, program)};
     device.SaveShader(code);
     vk::ShaderModule spv_module{BuildShader(device, code)};
 

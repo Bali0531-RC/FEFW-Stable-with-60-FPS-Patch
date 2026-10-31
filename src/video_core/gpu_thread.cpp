@@ -4,6 +4,9 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <chrono>
+#include <thread>
+
 #include "common/assert.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
@@ -16,6 +19,7 @@
 #include "video_core/gpu_thread.h"
 #include "video_core/host1x/host1x.h"
 #include "video_core/renderer_base.h"
+#include "common/timeline.h"
 
 namespace VideoCommon::GPUThread {
 
@@ -36,10 +40,20 @@ void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Core::Fronten
         auto current_context = context.Acquire();
         CommandDataContainer next;
         while (!stop_token.stop_requested()) {
-            state.queue.PopWait(next, stop_token);
+            if (scheduler.HasPendingNativeChannels()) {
+                scheduler.ResumePending(system.GPU());
+                if (!state.queue.TryPop(next)) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                    continue;
+                }
+            } else if (!state.queue.TryPop(next)) {
+                rasterizer->OnGpuThreadIdle();
+                state.queue.PopWait(next, stop_token);
+            }
             if (stop_token.stop_requested()) {
                 break;
             }
+            Common::Timeline::Mark("gpu_begin", next.data.index(), next.fence);
             if (auto* submit_list = std::get_if<SubmitListCommand>(&next.data)) {
                 scheduler.Push(system.GPU(), submit_list->channel, std::move(submit_list->entries));
             } else if (std::holds_alternative<GPUTickCommand>(next.data)) {
@@ -52,6 +66,11 @@ void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Core::Fronten
                 ASSERT(false);
             }
             state.signaled_fence.store(next.fence);
+            Common::Timeline::Mark("gpu_end", next.data.index(), next.fence);
+            // Diagnostic: EDEN_GPU_THREAD_DELAY_US slows the GPU thread to test speed-dependent bugs.
+            if (static const long delay_us = [] { const char* v = std::getenv("EDEN_GPU_THREAD_DELAY_US"); return v ? std::atol(v) : 0L; }(); delay_us > 0) {
+                std::this_thread::sleep_for(std::chrono::microseconds{delay_us});
+            }
             if (next.block) {
                 // We have to lock the write_lock to ensure that the condition_variable wait not get a
                 // race between the check and the lock itself.
