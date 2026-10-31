@@ -26,8 +26,12 @@ SETUP
        chmod +x eden-ns2-fe-linux-*.AppImage
        ./eden-ns2-fe-linux-*.AppImage
    If it does not start, your distribution may need FUSE 2 (often a package
-   called fuse2 or libfuse2).
+   called fuse2 or libfuse2). The uruntime-based local AppImage also supports:
+       ./eden-ns2-fe-linux-*.AppImage --appimage-extract-and-run
 2. Install your keys and firmware, and add your game folder, as usual.
+   For an extracted game, choose File > Load Folder and select the directory
+   containing main and main.npdm (usually base/exefs). This avoids file-picker
+   filters that hide the extensionless main executable.
 3. Settings (Emulation > Configure):
      System > System:      Memory Layout = 12GB DRAM (Unsafe)
                            Console Mode = Docked (1440p) or Handheld (1080p,
@@ -76,3 +80,6 @@ SOURCE
 Eden is licensed under the GPL v3 (see LICENSE.txt). This build is based on
 Eden commit a3debcf plus local Switch 2 changes; the source is available on
 request.
+
+Linux source build and AppImage packaging instructions:
+    docs/build/Linux-NS2.md in this repository

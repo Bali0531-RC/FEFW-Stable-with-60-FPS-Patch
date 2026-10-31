@@ -61,6 +61,9 @@ We have a user manual! See our [User Handbook](./docs/user/README.md).
 
 ## Building
 
+For this fork's experimental NS2 / Fortune's Weave build, see the
+[Linux build and AppImage guide](docs/build/Linux-NS2.md).
+
 See the [General Build Guide](docs/Build.md)
 
 For information on provided development tooling, see the [Tools directory](./tools)

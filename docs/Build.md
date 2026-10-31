@@ -1,5 +1,9 @@
 # Building Eden
 
+For this fork's NS2 / Fortune's Weave Linux build, start with the
+[Linux build and AppImage guide](build/Linux-NS2.md), which clones this repository
+and uses its actual CMake targets.
+
 > [!WARNING]
 > This guide is intended for developers ONLY. If you are not a developer or packager, you are unlikely to receive support.
 
