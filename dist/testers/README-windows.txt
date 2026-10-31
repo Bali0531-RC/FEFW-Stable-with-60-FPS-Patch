@@ -34,6 +34,8 @@ SETUP
      System > System:      Memory Layout = 12GB DRAM (Unsafe)
                            Console Mode = Docked (1440p) or Handheld (1080p,
                            lighter on the GPU)
+     Graphics:             Window Adapting Filter = Bilinear
+                           Anti-Aliasing = SMAA (smoother portrait edges)
      Graphics > Advanced:  GPU Mode = Fast
                            Force maximum clocks = on
                            Sync Memory Operations = on
