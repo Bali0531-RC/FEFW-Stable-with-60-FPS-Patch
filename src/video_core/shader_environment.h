@@ -32,6 +32,24 @@ namespace VideoCommon {
 std::optional<u32> ReadNativeGuardConstant(Tegra::Engines::KeplerCompute& compute,
                                           Tegra::MemoryManager& memory, u32 bank, u32 offset);
 
+/// A native (Switch 2) program after capture and lowering to Maxwell code. The shader cache keeps
+/// it so the environments built for the program's pipelines don't capture and lower it again.
+struct LoweredNativeCode {
+    /// Shader header, lowered instructions with Maxwell scheduling words, then the native
+    /// address map (what the environment's `code` used to be filled with).
+    std::vector<u64> code;
+    /// Bytes of the native program that were read, header included.
+    size_t source_size{};
+    /// Constant buffer holding the texture handles if the program requires one, otherwise ~0U
+    /// (the engine's register value is used).
+    u32 texture_bound = ~0U;
+    /// Native frontend state, so a reused program still reports the same program and tables.
+    std::vector<Shader::Ampere::Instruction> ampere_program;
+    std::vector<u32> ampere_indirect_targets;
+    std::vector<std::pair<u32, std::vector<u32>>> native_indirect_tables;
+    std::vector<Shader::Ampere::Instruction> native_trap_prefix;
+    u32 source_header_size{};
+};
 
 class GenericEnvironment : public Shader::Environment {
 public:
@@ -69,6 +87,10 @@ public:
 
     [[nodiscard]] size_t SourceSizeBytes() const noexcept {
         return native_source_size;
+    }
+
+    [[nodiscard]] const std::shared_ptr<const LoweredNativeCode>& LoweredNative() const noexcept {
+        return lowered_native;
     }
 
     [[nodiscard]] const std::vector<Shader::Ampere::Instruction>& NativeTrapPrefix() const noexcept {
@@ -113,9 +135,14 @@ public:
 protected:
     std::optional<u64> TryFindSize();
 
-    void InitializeNativeCode(u32 source_header_size = 128,
+    /// Adopts an already lowered native program, or captures and lowers it when there is none.
+    void InitializeNativeCode(std::shared_ptr<const LoweredNativeCode> lowered,
+                              u32 source_header_size = 128,
                               const Shader::Ampere::TrapGuardReader& guard_reader = {});
+    std::shared_ptr<const LoweredNativeCode> LowerNativeCode(
+        u32 source_header_size, const Shader::Ampere::TrapGuardReader& guard_reader);
     size_t native_source_size{};
+    std::shared_ptr<const LoweredNativeCode> lowered_native;
     u32 native_source_header_size{};
     std::vector<Shader::Ampere::Instruction> native_trap_prefix;
     // Set only when the program is translated by the native Ampere frontend.
@@ -162,7 +189,8 @@ public:
     explicit GraphicsEnvironment(Tegra::Engines::Maxwell3D& maxwell3d_,
                                  Tegra::MemoryManager& gpu_memory_,
                                  Tegra::Engines::Maxwell3D::Regs::ShaderType program,
-                                 GPUVAddr program_base_, u32 start_address_);
+                                 GPUVAddr program_base_, u32 start_address_,
+                                 std::shared_ptr<const LoweredNativeCode> lowered_native_ = {});
 
     ~GraphicsEnvironment() override = default;
 
@@ -187,7 +215,8 @@ public:
     explicit ComputeEnvironment() = default;
     explicit ComputeEnvironment(Tegra::Engines::KeplerCompute& kepler_compute_,
                                 Tegra::MemoryManager& gpu_memory_, GPUVAddr program_base_,
-                                u32 start_address_);
+                                u32 start_address_,
+                                std::shared_ptr<const LoweredNativeCode> lowered_native_ = {});
 
     ~ComputeEnvironment() override = default;
 

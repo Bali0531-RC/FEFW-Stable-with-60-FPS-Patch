@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
@@ -496,7 +497,19 @@ void Maxwell3D::ProcessMacroUpload(u32 data) {
 }
 
 void Maxwell3D::ProcessMacroBind(u32 data) {
-    GetNativeMacroPositions()[regs.load_mme.start_address_ptr++] = data;
+    // A desynced pushbuffer can hand us a garbage index (Mario Kart World recorded 0x3a400040
+    // against a 0x80 entry table); writing it would run past the table, so drop it.
+    const std::span<u32> positions{GetNativeMacroPositions()};
+    const u32 index{regs.load_mme.start_address_ptr++};
+    if (index >= positions.size()) {
+        static std::atomic<u32> rejected{};
+        if (rejected.fetch_add(1) < 8) {
+            LOG_ERROR(HW_GPU, "Macro bind index {:#x} is outside the {} entry table", index,
+                      positions.size());
+        }
+        return;
+    }
+    positions[index] = data;
 }
 
 void Maxwell3D::ProcessFirmwareCall4() {

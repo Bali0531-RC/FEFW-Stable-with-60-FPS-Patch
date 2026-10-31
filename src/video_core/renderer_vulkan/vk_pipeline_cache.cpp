@@ -624,7 +624,9 @@ ComputePipeline* PipelineCache::CurrentTwinComputePipeline(int frontend_mode) {
     const GPUVAddr program_base{kepler_compute->regs.code_loc.Address()};
     Shader::Ampere::SetFrontendOverride(frontend_mode);
     try {
-        ComputeEnvironment env{*kepler_compute, *gpu_memory, program_base, qmd.program_start};
+        // Only the default (lowering) twin can reuse the registered program's lowering.
+        ComputeEnvironment env{*kepler_compute, *gpu_memory, program_base, qmd.program_start,
+                               frontend_mode == 0 ? shader->lowered_native : nullptr};
         // The twin's program may be sized differently from the registered one (native vs lowered).
         env.SetCachedSize(frontend_mode == 0 ? shader->size_bytes : env.CachedSizeBytes());
         main_pools.ReleaseContents();
@@ -1015,7 +1017,8 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     const ComputePipelineCacheKey& key, const ShaderInfo* shader) {
     const GPUVAddr program_base{kepler_compute->regs.code_loc.Address()};
     const auto& qmd{kepler_compute->launch_description};
-    ComputeEnvironment env{*kepler_compute, *gpu_memory, program_base, qmd.program_start};
+    ComputeEnvironment env{*kepler_compute, *gpu_memory, program_base, qmd.program_start,
+                           shader->lowered_native};
     env.SetCachedSize(shader->size_bytes);
 
     main_pools.ReleaseContents();
@@ -1106,11 +1109,14 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
 void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& filename,
                                                  const vk::PipelineCache& pipeline_cache,
                                                  u32 cache_version) try {
-    std::ofstream file(filename, std::ios::binary);
+    // Write to a temporary file and rename it over the old cache, so a stop in the middle of the
+    // write keeps the previous cache instead of leaving an empty file that fails to load.
+    const std::filesystem::path temporary{filename.string() + ".tmp"};
+    std::ofstream file(temporary, std::ios::binary);
     file.exceptions(std::ifstream::failbit);
     if (!file.is_open()) {
         LOG_ERROR(Common_Filesystem, "Failed to open Vulkan driver pipeline cache file {}",
-                  Common::FS::PathToUTF8String(filename));
+                  Common::FS::PathToUTF8String(temporary));
         return;
     }
     file.write(VULKAN_CACHE_MAGIC_NUMBER.data(), VULKAN_CACHE_MAGIC_NUMBER.size())
@@ -1124,15 +1130,26 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
         pipeline_cache.Read(&cache_size, cache_data.data());
     }
     file.write(cache_data.data(), cache_size);
+    file.close();
+
+    // RenameFile refuses to overwrite, so drop the old cache first. The temporary file is already
+    // complete at this point, so a stop here loses the cache but never leaves a truncated one.
+    Common::FS::RemoveFile(filename);
+    if (!Common::FS::RenameFile(temporary, filename)) {
+        LOG_ERROR(Common_Filesystem, "Failed to replace Vulkan driver pipeline cache file {}",
+                  Common::FS::PathToUTF8String(filename));
+        return;
+    }
 
     LOG_INFO(Render_Vulkan, "Vulkan driver pipelines cached at: {}",
              Common::FS::PathToUTF8String(filename));
 
 } catch (const std::ios_base::failure& e) {
     LOG_ERROR(Common_Filesystem, "{}", e.what());
-    if (!Common::FS::RemoveFile(filename)) {
+    const std::filesystem::path temporary{filename.string() + ".tmp"};
+    if (!Common::FS::RemoveFile(temporary)) {
         LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
-                  Common::FS::PathToUTF8String(filename));
+                  Common::FS::PathToUTF8String(temporary));
     }
 }
 
@@ -1154,6 +1171,17 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
         }
         file.exceptions(std::ifstream::failbit);
         const auto end{file.tellg()};
+        static constexpr size_t header_size =
+            VULKAN_CACHE_MAGIC_NUMBER.size() + sizeof(u32);
+        if (end < 0 || static_cast<size_t>(end) < header_size) {
+            // A stop in the middle of a write used to leave an empty file; recreate it instead of
+            // reading past its end.
+            file.close();
+            LOG_ERROR(Common_Filesystem,
+                      "Truncated Vulkan driver pipeline cache file, recreating it");
+            Common::FS::RemoveFile(filename);
+            return create_pipeline_cache(0, nullptr);
+        }
         file.seekg(0, std::ios::beg);
 
         std::array<char, 8> magic_number;
@@ -1177,7 +1205,6 @@ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::
             return create_pipeline_cache(0, nullptr);
         }
 
-        static constexpr size_t header_size = magic_number.size() + sizeof(cache_version);
         const size_t cache_size = static_cast<size_t>(end) - header_size;
         std::vector<char> cache_data(cache_size);
         file.read(cache_data.data(), cache_size);

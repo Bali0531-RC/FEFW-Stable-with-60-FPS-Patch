@@ -39,6 +39,8 @@ struct ShaderInfo {
     u64 unique_hash{};
     size_t size_bytes{};
     std::vector<Shader::Ampere::Instruction> native_trap_prefix;
+    /// Lowered code of a native program, reused when its pipelines are built.
+    std::shared_ptr<const LoweredNativeCode> lowered_native;
 };
 
 class ShaderCache : public VideoCommon::ChannelSetupCaches<VideoCommon::ChannelInfo> {

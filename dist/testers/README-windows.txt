@@ -15,6 +15,12 @@ WHAT'S NEW IN THIS BUILD
 - Movies (such as the opening movie) play at full speed. They were slow before.
 - Fewer slowdowns while shaders build. Eden no longer rebuilds the same shaders
   over and over, and existing shader caches load much faster.
+- Native shader capture and translation are now reused across pipelines, and
+  compute shaders request a 32-wide subgroup only when they need warp operations.
+  The user confirmed faster shader builds with less gameplay slowdown.
+- Existing shader caches now retain native constant-buffer folding on replay.
+- Shader stages support 32 storage buffers, driver pipeline-cache writes use a
+  temporary file, and invalid macro-bind indices are rejected safely.
 - Black flicker and black screens are fixed (cutscenes, battles, title screen).
 - Crash shortly before character creation is fixed (with asynchronous
   presentation on).
@@ -58,6 +64,8 @@ Please play normally, including cutscenes and several battles, and report:
 - any stretch where the game crawls (note where you were and roughly how long)
 - movies that stutter, run slowly or show wrong colours
 - crashes or freezes, with what you were doing
+- picture differences between the first launch and later launches with a warm
+  shader cache, or changes in sharpness and temporal smearing
 
 With each report, send the log file:
     %APPDATA%\eden\log\eden_log.txt

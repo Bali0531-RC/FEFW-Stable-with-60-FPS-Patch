@@ -158,7 +158,8 @@ void ShaderCache::GetGraphicsEnvironments(GraphicsEnvironments& result,
         const GPUVAddr address = native
             ? (static_cast<u64>(config.reserved[0] & 0xff) << 32) | config.reserved[1]
             : base_addr;
-        env = GraphicsEnvironment{*maxwell3d, *gpu_memory, program, address, start_address};
+        env = GraphicsEnvironment{*maxwell3d, *gpu_memory, program, address, start_address,
+                                 shader_infos[index]->lowered_native};
         env.SetCachedSize(shader_infos[index]->size_bytes);
         result.env_ptrs[env_index++] = &env;
     }
@@ -356,6 +357,7 @@ const ShaderInfo* ShaderCache::MakeShaderInfo(GenericEnvironment& env, VAddr cpu
         info->size_bytes = env.ReadSizeBytes();
     }
     info->native_trap_prefix = env.NativeTrapPrefix();
+    info->lowered_native = env.LoweredNative();
     const size_t size_bytes{env.SourceSizeBytes() ? env.SourceSizeBytes() : info->size_bytes};
     const ShaderInfo* const result{info.get()};
     Register(std::move(info), cpu_addr, size_bytes);
