@@ -137,7 +137,7 @@ inline bool SameArray(const BufferTextureAddress& a, const BufferTextureAddress&
 
 class Tracker {
 public:
-    explicit Tracker(IR::Program& program_) : program{program_} {}
+    explicit Tracker(IR::Program& program_) : program{program_}, index{program_} {}
 
     std::optional<BufferTextureAddress> Find(IR::Value value) {
         value = value.Resolve();
@@ -154,8 +154,10 @@ public:
                 if (auto* block = Owner(inst)) {
                     IR::IREmitter ir{*block, IR::Block::InstructionList::s_iterator_to(*inst)};
                     result = *a;
-                    if (a->index.Resolve() != b->index.Resolve())
+                    if (a->index.Resolve() != b->index.Resolve()) {
                         result->index = IR::U32{ir.Select(IR::U1{inst->Arg(0)}, a->index, b->index)};
+                        index.AddInst(result->index.InstRecursive(), block);
+                    }
                 }
             }
         }
@@ -172,6 +174,7 @@ public:
                 })) result = inputs.front();
                 else if (auto* block = Owner(inst)) {
                     auto phi = block->PrependNewInst(block->begin(), IR::Opcode::Phi);
+                    index.AddInst(&*phi, block);
                     phi->SetFlags(IR::Type::U32);
                     for (size_t i = 0; i < inputs.size(); ++i)
                         phi->AddPhiOperand(inst->PhiBlock(i), inputs[i].index);
@@ -222,7 +225,7 @@ public:
             return true;
         };
         if (!collect(collect, value, {}, 0) || !source || invalid_edges.empty()) return {};
-        ControlFlowReachability paths{program, root, use};
+        ControlFlowReachability paths{program, index, root, use};
         for (const auto& [from, to] : invalid_edges)
             if (!paths.ExcludesEdge(from, to)) return {};
         return source;
@@ -256,7 +259,7 @@ public:
                 field->index.Resolve() != source.index.Resolve() || (*constant & ~mask)) continue;
             const auto* owner = Owner(value.TryInstRecursive());
             if (!owner || ++candidates > 32) return result;
-            ControlFlowReachability paths{program, owner, use};
+            ControlFlowReachability paths{program, index, owner, use};
             for (bool not_equal : {false, true}) {
                 const BufferTextureExclusion exclusion{field->offset, mask, *constant, not_equal};
                 if (std::ranges::find(result, exclusion) != result.end() ||
@@ -306,7 +309,7 @@ public:
                         default: return {};
                         }
                     };
-                    ControlFlowReachability paths{program, owner, use,
+                    ControlFlowReachability paths{program, index, owner, use,
                         [&](IR::Value input) { return evaluate(evaluate, input, 0); }};
                     if (paths.IsUnreachable()) result[count++] = {field->offset, ~0U, tag};
                 }
@@ -336,11 +339,13 @@ public:
 
 private:
     IR::Block* Owner(const IR::Inst* inst) const {
-        for (auto* block : program.blocks)
-            for (const auto& candidate : block->Instructions()) if (&candidate == inst) return block;
-        return nullptr;
+        const auto& owners = index.Owners();
+        const auto found = owners.find(inst);
+        return found != owners.end() ? found->second : nullptr;
     }
     IR::Program& program;
+    /// Shared by Owner and the reachability proofs; lazily built, so mutable for const queries.
+    mutable ProgramIndex index;
     std::unordered_map<const IR::Inst*, std::optional<BufferTextureAddress>> cache;
     std::unordered_set<const IR::Inst*> active;
 };

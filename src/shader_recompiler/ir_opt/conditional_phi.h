@@ -28,10 +28,16 @@ inline IR::Value Resolve(IR::Value value) {
     return value;
 }
 
-inline Branches FindBranches(const IR::Program& program) {
-    std::unordered_map<const IR::Inst*, const IR::Block*> owners;
-    for (const auto* block : program.blocks)
+using Owners = std::unordered_map<const IR::Inst*, IR::Block*>;
+
+inline Owners FindOwners(const IR::Program& program) {
+    Owners owners;
+    for (auto* block : program.blocks)
         for (const auto& inst : block->Instructions()) owners.emplace(&inst, block);
+    return owners;
+}
+
+inline Branches FindBranches(const IR::Program& program, const Owners& owners) {
     Branches result;
     for (const auto& node : program.syntax_list) {
         using T = IR::AbstractSyntaxNode::Type;
@@ -50,6 +56,10 @@ inline Branches FindBranches(const IR::Program& program) {
             result.emplace(found->second, branch);
     }
     return result;
+}
+
+inline Branches FindBranches(const IR::Program& program) {
+    return FindBranches(program, FindOwners(program));
 }
 
 inline Facts EdgeFacts(const Branch& branch, const IR::Block* destination) {

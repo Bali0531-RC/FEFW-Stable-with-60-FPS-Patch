@@ -12,6 +12,40 @@
 #include "shader_recompiler/ir_opt/conditional_phi.h"
 
 namespace Shader::Optimization {
+// Instruction owners and structured branches of a program, built on first use and shared by
+// the reachability proofs of one pass. Each proof used to rebuild both from every instruction,
+// which made a texture pass over a ~19,000 instruction shader take half a second. The IR may
+// gain instructions while the index is alive (never lose or move them); AddInst records them.
+class ProgramIndex {
+public:
+    explicit ProgramIndex(const IR::Program& program_) : program{program_} {}
+
+    const ConditionalPhi::Owners& Owners() {
+        Build();
+        return owners;
+    }
+    const ConditionalPhi::Branches& Branches() {
+        Build();
+        return branches;
+    }
+    void AddInst(const IR::Inst* inst, IR::Block* block) {
+        if (built) owners.emplace(inst, block);
+    }
+
+private:
+    void Build() {
+        if (built) return;
+        owners = ConditionalPhi::FindOwners(program);
+        branches = ConditionalPhi::FindBranches(program, owners);
+        built = true;
+    }
+
+    const IR::Program& program;
+    bool built{};
+    ConditionalPhi::Owners owners;
+    ConditionalPhi::Branches branches;
+};
+
 // A bounded, conservative proof for paths within one execution of a dominating block.
 class ControlFlowReachability {
     struct Limit {};
@@ -69,10 +103,10 @@ class ControlFlowReachability {
 
 public:
     using ConstantReader = std::function<std::optional<u32>(IR::Value)>;
-    ControlFlowReachability(const IR::Program& program, const IR::Block* root_, const IR::Block* use_,
-                            ConstantReader reader_ = {})
+    ControlFlowReachability(const IR::Program& program, ProgramIndex& index, const IR::Block* root_,
+                            const IR::Block* use_, ConstantReader reader_ = {})
         : root{root_}, use{use_}, reader{std::move(reader_)} {
-        try { Build(program); valid = true; } catch (const Limit&) {}
+        try { Build(program, index); valid = true; } catch (const Limit&) {}
     }
 
     bool ExcludesEdge(const IR::Block* from, const IR::Block* to) {
@@ -113,8 +147,8 @@ private:
         const auto key = std::pair{inst, constant};
         if (!active_equalities.insert(key).second || active_equalities.size() > 256) throw Limit{};
         u32 result = booleans.Atom();
-        const auto owner = owners.find(inst);
-        if (inst->GetOpcode() == IR::Opcode::Phi && owner != owners.end() &&
+        const auto owner = owners->find(inst);
+        if (inst->GetOpcode() == IR::Opcode::Phi && owner != owners->end() &&
             owner->second != root && region.contains(owner->second)) {
             u32 merged{};
             bool complete = true;
@@ -174,8 +208,8 @@ private:
             break;
         }
         case IR::Opcode::Phi: {
-            const auto found_owner = owners.find(inst);
-            if (found_owner == owners.end() || found_owner->second == root || !region.contains(found_owner->second)) {
+            const auto found_owner = owners->find(inst);
+            if (found_owner == owners->end() || found_owner->second == root || !region.contains(found_owner->second)) {
                 result = Atom(inst);
                 break;
             }
@@ -194,7 +228,7 @@ private:
         return result;
     }
 
-    void Build(const IR::Program& program) {
+    void Build(const IR::Program& program, ProgramIndex& index) {
         if (program.blocks.empty() || !root || !use) throw Limit{};
         // If an entry-to-use path bypasses root, its values cannot be specialized here.
         std::vector<const IR::Block*> pending{program.blocks.front()};
@@ -242,9 +276,8 @@ private:
                 if (next != root && region.contains(next) && --degree[next] == 0) order.push_back(next);
         }
         if (order.size() != region.size()) throw Limit{};
-        for (const auto* block : program.blocks)
-            for (const auto& inst : block->Instructions()) owners.emplace(&inst, block);
-        const auto branches = ConditionalPhi::FindBranches(program);
+        owners = &index.Owners();
+        const auto& branches = index.Branches();
         for (const auto* block : order) {
             u32 reached = block == root ? 1 : 0;
             if (block != root) for (const auto* previous : block->ImmPredecessors())
@@ -273,7 +306,7 @@ private:
     u32 constraints{1};
     std::unordered_set<const IR::Block*> region;
     std::unordered_set<const IR::Inst*> active;
-    std::unordered_map<const IR::Inst*, const IR::Block*> owners;
+    const ConditionalPhi::Owners* owners{};
     std::unordered_map<const IR::Inst*, u32> expressions;
     std::unordered_map<const IR::Block*, u32> reach;
     std::map<std::pair<const IR::Block*, const IR::Block*>, u32> edges;
