@@ -12,6 +12,7 @@
 #include <boost/container/small_vector.hpp>
 
 #include "common/common_types.h"
+#include "common/logging.h"
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
 #include "shader_recompiler/shader_info.h"
 #include "shader_recompiler/exception.h"
@@ -369,12 +370,23 @@ inline void PushImageDescriptors(TextureCache& texture_cache,
             ImageView& image_view{texture_cache.GetImageView(image_view_id)};
             VkImageView vk_image_view{image_view.Handle(desc.type)};
             if (desc.buffer_source.enabled && image_view_id != VideoCommon::NULL_IMAGE_VIEW_ID &&
-                (VideoCore::Surface::IsPixelFormatInteger(image_view.format) || vk_image_view == VK_NULL_HANDLE))
-                throw Shader::NotImplementedException(
-                    "Buffer-backed texture entry {} (CB{}+{:#x}, field {:#x}) has format {}, expected type {}, view available {}, texture index {}, guest type {}, width query {}",
-                    index, desc.cbuf_index, desc.cbuf_offset, desc.buffer_source.offset,
-                    static_cast<u32>(image_view.format), static_cast<u32>(desc.type), vk_image_view != VK_NULL_HANDLE,
-                    guest_view.index, static_cast<u32>(image_view.type), desc.buffer_source.width_query);
+                (VideoCore::Surface::IsPixelFormatInteger(image_view.format) || vk_image_view == VK_NULL_HANDLE)) {
+                // Every record of the table is bound, including ones this instruction cannot
+                // sample (FE light lists: a point-light cube slot can hold a single-layer 2D).
+                // Hardware samples such a slot as undefined data; a typed null view keeps the
+                // draw instead of dropping it (that dropped the battle floor until a restart).
+                static u32 warnings{};
+                if (warnings < 16) {
+                    ++warnings;
+                    LOG_WARNING(Render_Vulkan,
+                        "Buffer-backed texture entry {} (CB{}+{:#x}, field {:#x}) has format {}, expected type {}, view available {}, texture index {}, guest type {}, {}x{} layers {}; sampling a null view",
+                        index, desc.cbuf_index, desc.cbuf_offset, desc.buffer_source.offset,
+                        static_cast<u32>(image_view.format), static_cast<u32>(desc.type), vk_image_view != VK_NULL_HANDLE,
+                        guest_view.index, static_cast<u32>(image_view.type), image_view.size.width,
+                        image_view.size.height, image_view.range.extent.layers);
+                }
+                vk_image_view = VK_NULL_HANDLE;
+            }
             if (vk_image_view == VK_NULL_HANDLE) {
                 const VkImageView null_image_view{texture_cache.GetImageView(VideoCommon::NULL_IMAGE_VIEW_ID).Handle(desc.type)};
                 if (null_image_view != VK_NULL_HANDLE) vk_image_view = null_image_view;

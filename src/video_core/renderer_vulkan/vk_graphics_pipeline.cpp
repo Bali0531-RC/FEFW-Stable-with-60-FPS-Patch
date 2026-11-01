@@ -832,7 +832,8 @@ bool GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                             static_cast<u32>(cached.type), static_cast<u32>(cached.format),
                             desc.cbuf_index, desc.cbuf_offset, base, size,
                             desc.buffer_source.stride, desc.buffer_source.offset);
-                        if (size == desc.buffer_source.size && size <= 16 * 1024 * 1024 &&
+                        if (std::getenv("EDEN_NATIVE_DRAW_ON_DEMAND") &&
+                            size == desc.buffer_source.size && size <= 16 * 1024 * 1024 &&
                             base && base + size >= base && gpu_memory->IsFullyMappedRange(base, size)) {
                             std::vector<u8> bytes(size);
                             gpu_memory->ReadBlock(base, bytes.data(), bytes.size());
