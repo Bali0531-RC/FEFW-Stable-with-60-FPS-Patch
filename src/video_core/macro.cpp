@@ -1350,8 +1350,8 @@ void MacroEngine::Execute(Core::System& system, Engines::Maxwell3D& maxwell3d, u
             std::ofstream dump("native-graphics-mme-" + std::to_string(context) + ".bin", std::ios::binary);
             dump.write(reinterpret_cast<const char*>(native_code.data()), sizeof(native_code));
         }
-        LOG_DEBUG(HW_GPU, "Native MME context={:#x}", context);
-        LOG_DEBUG(HW_GPU, "Native MME start={:#x}, parameters={}, data={:08x}", method, parameters.size(), fmt::join(parameters, ","));
+        LOG_TRACE(HW_GPU, "Native MME context={:#x}", context);
+        LOG_TRACE(HW_GPU, "Native MME start={:#x}, parameters={}, data={:08x}", method, parameters.size(), fmt::join(parameters, ","));
         const auto result = maxwell3d.GetNativeMacroInterpreter().ExecuteDecoded(native_decoded_code, method, parameters,
             [&](u32 address) { return address < Maxwell3D::Regs::NUM_REGS ? maxwell3d.GetRegisterValue(address) : 0U; },
             [&](u32 address, u32 value) {
