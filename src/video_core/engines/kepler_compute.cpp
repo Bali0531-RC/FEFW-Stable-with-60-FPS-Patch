@@ -335,7 +335,7 @@ bool KeplerCompute::DispatchNativeCompute(const NativeQmdScheduler::Descriptor& 
     static u32 capture_index{}, capture_remaining{};
     static bool capture_memory{};
     static std::unordered_set<GPUVAddr> captured_programs;
-    if (std::getenv("EDEN_NATIVE_DRAW_ON_DEMAND")) {
+    if (VideoCommon::NativeDrawOnDemandEnabled()) {
         std::error_code error;
         if (VideoCommon::NativeRequestPending() && std::filesystem::exists("native-compute.request", error)) {
             std::ifstream request("native-compute.request");

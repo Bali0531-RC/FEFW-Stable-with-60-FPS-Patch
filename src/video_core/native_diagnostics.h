@@ -29,6 +29,10 @@ inline bool NativeDrawCaptureEnabled() {
     static const bool enabled = std::getenv("EDEN_NATIVE_DRAW_CAPTURE") != nullptr;
     return enabled;
 }
+inline bool NativeDrawOnDemandEnabled() {
+    static const bool enabled = std::getenv("EDEN_NATIVE_DRAW_ON_DEMAND") != nullptr;
+    return enabled;
+}
 // True when a "*.request" file may be waiting in the working directory. The directory is scanned at
 // most every 100 ms; checking each request file on every draw and dispatch slowed diagnostic runs to
 // about 1 fps. A request is therefore picked up up to 100 ms late.

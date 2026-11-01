@@ -57,6 +57,7 @@ inline bool BeginNativeTextureCapture() {
 inline void CaptureNativeTexture(Tegra::MemoryManager& memory, u32 index,
                                  const Tegra::Texture::TICEntry& descriptor,
                                  const ImageViewBase& view, const ImageBase& image) {
+    if (!NativeTextureRequestsEnabled()) return;
     auto& state = NativeTextureCapture::GetState();
     if (!state.active || state.images.size() >= 64 || !state.images.insert(descriptor.raw).second)
         return;
@@ -123,6 +124,8 @@ inline void CaptureNativeTexture(Tegra::MemoryManager& memory, u32 index,
 }
 
 inline void CaptureNativeSampler(u32 index, const Tegra::Texture::TSCEntry& descriptor) {
+    // Called for every sampler of every draw; capture can only be active with requests enabled.
+    if (!NativeTextureRequestsEnabled()) return;
     auto& state = NativeTextureCapture::GetState();
     if (!state.active || state.samplers.size() >= 64 || !state.samplers.insert(index).second) return;
     const std::string prefix = "native-sampler-" + std::to_string(state.epoch) + "-" + std::to_string(index);

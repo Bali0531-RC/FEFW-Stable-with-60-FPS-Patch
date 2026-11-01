@@ -397,7 +397,8 @@ NvResult nvhost_gpu::SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandL
         }
     }
 
-    if (UsesNativeAbi() && std::getenv("EDEN_NATIVE_FRAME_CAPTURE") && native_submit_logs < 100) {
+    static const bool frame_capture = std::getenv("EDEN_NATIVE_FRAME_CAPTURE") != nullptr;
+    if (UsesNativeAbi() && frame_capture && native_submit_logs < 100) {
         for (size_t i = 0; i < entries.command_lists.size(); ++i) {
             const auto& entry = entries.command_lists[i];
             const auto bytes = static_cast<size_t>(entry.size) * sizeof(u32);

@@ -1219,7 +1219,8 @@ void RasterizerVulkan::DispatchComputeImpl(int twin_frontend_mode) {
     if (dim[0] > max_dim[0] || dim[1] > max_dim[1] || dim[2] > max_dim[2]) {
         return;
     }
-    if (twin_frontend_mode < 0 && std::getenv("EDEN_SKIP_TINY_COMPUTE") && dim[0] * dim[1] * dim[2] <= 2) {
+    static const bool skip_tiny_compute = std::getenv("EDEN_SKIP_TINY_COMPUTE") != nullptr;
+    if (twin_frontend_mode < 0 && skip_tiny_compute && dim[0] * dim[1] * dim[2] <= 2) {
         return; // experiment only: measures the cost of the tiny dispatches
     }
     scheduler.RequestOutsideRenderPassOperationContext();
