@@ -459,6 +459,10 @@ private:
     template <bool insert>
     void ChangeRegister(BufferId buffer_id);
 
+    /// Debug check (EDEN_BUFFER_PAGE_CHECK): logs page_table changes that leave stale entries.
+    template <bool insert>
+    void CheckPageTableChange(BufferId buffer_id, u64 page_begin, u64 page_end);
+
     void TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept;
 
     bool SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size);
