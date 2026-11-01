@@ -195,6 +195,7 @@ void SoftwareKeyboard::InitializeForeground() {
 
     switch (swkbd_applet_version) {
     case SwkbdAppletVersion::Version1310736:
+    case SwkbdAppletVersion::Version1441810:
         ASSERT(DecodeNativeSwkbdConfig(swkbd_config_data, swkbd_config_common, swkbd_config_new));
         break;
     case SwkbdAppletVersion::Version5:
@@ -219,6 +220,11 @@ void SoftwareKeyboard::InitializeForeground() {
     default:
         UNIMPLEMENTED_MSG("Unknown SwkbdConfig revision={} with size={}", swkbd_applet_version,
                           swkbd_config_data.size());
+        // A native-sized config keeps use_utf8 and the string offsets elsewhere, so reading it
+        // with the Switch 1 layout returns UTF-16 to a game that asked for UTF-8.
+        if (DecodeNativeSwkbdConfig(swkbd_config_data, swkbd_config_common, swkbd_config_new)) {
+            break;
+        }
         ASSERT(swkbd_config_data.size() >= sizeof(SwkbdConfigCommon) + sizeof(SwkbdConfigNew));
         std::memcpy(&swkbd_config_new, swkbd_config_data.data() + sizeof(SwkbdConfigCommon),
                     sizeof(SwkbdConfigNew));
