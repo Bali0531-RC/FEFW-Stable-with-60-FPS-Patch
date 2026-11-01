@@ -4,7 +4,15 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <mutex>
+#include <ranges>
+#include <unordered_map>
+
 #include "common/settings.h"
+#include "core/arm/debug.h"
 #include "core/arm/dynarmic/arm_dynarmic.h"
 #include "core/arm/dynarmic/arm_dynarmic_64.h"
 #include "core/arm/dynarmic/dynarmic_exclusive_monitor.h"
@@ -178,7 +186,72 @@ u64 DynarmicCallbacks64::GetTicksRemaining() {
     return std::max<s64>(m_parent.m_system.CoreTiming().downcount, 0);
 }
 
+namespace {
+
+// EDEN_CNTPCT_PROFILE=<n>: every n-th guest counter read records the guest location, and the
+// hottest locations are logged with backtraces every 10 seconds. Context is read mid-block, so
+// pc is the current block's start and lr/fp are the values at block entry.
+u64 CntpctProfileInterval() {
+    static const u64 interval = [] {
+        const char* value = std::getenv("EDEN_CNTPCT_PROFILE");
+        return value ? std::max<u64>(std::strtoull(value, nullptr, 0), 1) : 0;
+    }();
+    return interval;
+}
+
+void SampleCntpctSite(const ArmDynarmic64& arm, Kernel::KProcess* process) {
+    struct Site {
+        u64 count{};
+        Kernel::Svc::ThreadContext ctx{};
+    };
+    static std::mutex mutex;
+    static std::unordered_map<u64, Site> sites;
+    static u64 samples = 0;
+    static auto window_start = std::chrono::steady_clock::now();
+
+    Kernel::Svc::ThreadContext ctx;
+    arm.GetContext(ctx);
+    std::scoped_lock lock{mutex};
+    auto& site = sites[ctx.pc ^ (ctx.lr << 1)];
+    if (site.count++ == 0) {
+        site.ctx = ctx;
+    }
+    ++samples;
+    const auto now = std::chrono::steady_clock::now();
+    if (now - window_start < std::chrono::seconds{10}) {
+        return;
+    }
+    std::vector<const Site*> top;
+    for (const auto& [key, entry] : sites) {
+        top.push_back(&entry);
+    }
+    std::ranges::sort(top, [](const Site* a, const Site* b) { return a->count > b->count; });
+    std::string msg = fmt::format("CntpctProfile {:.1f}s samples={} interval={} sites={}",
+                                  std::chrono::duration<double>(now - window_start).count(),
+                                  samples, CntpctProfileInterval(), sites.size());
+    for (const Site* entry : top | std::views::take(8)) {
+        msg += fmt::format("\n{:5.1f}% pc={:#x} lr={:#x}:", 100.0 * entry->count / samples,
+                           entry->ctx.pc, entry->ctx.lr);
+        for (const auto& frame : GetBacktraceFromContext(process, entry->ctx) | std::views::take(8)) {
+            msg += fmt::format(" {}+{:#x}{}", frame.module, frame.offset,
+                               frame.name.empty() ? "" : "(" + frame.name + ")");
+        }
+    }
+    LOG_WARNING(Core_ARM, "{}", msg);
+    sites.clear();
+    samples = 0;
+    window_start = now;
+}
+
+} // namespace
+
 u64 DynarmicCallbacks64::GetCNTPCT() {
+    if (const u64 interval = CntpctProfileInterval(); interval != 0) {
+        thread_local u64 calls = 0;
+        if (++calls % interval == 0) {
+            SampleCntpctSite(m_parent, m_process);
+        }
+    }
     return Timing::GetGuestCounterTicks(m_parent.m_system.CoreTiming().GetClockTicks(),
                                         m_process && m_process->UsesPAuthReturns());
 }
