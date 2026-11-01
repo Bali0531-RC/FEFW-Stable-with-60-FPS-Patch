@@ -225,6 +225,11 @@ const CPUCaps g_cpu_caps = [] {
         }
     }
 
+    // AMD CPUs do not implement leaf 0x15; without a frequency the wall clock falls back to the OS clock.
+    if (caps.invariant_tsc && caps.tsc_frequency == 0) {
+        caps.tsc_frequency = X64::EstimateRDTSCFrequency();
+    }
+
     if (max_std_fn >= 0x16) {
         __cpuid(cpu_id, 0x16);
         caps.base_frequency = cpu_id[0];
