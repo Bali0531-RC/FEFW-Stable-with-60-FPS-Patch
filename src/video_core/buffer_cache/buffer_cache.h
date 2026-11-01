@@ -1108,6 +1108,27 @@ void BufferCache<P>::PrepareGroupedStorage(std::span<const std::pair<Binding*, b
 }
 
 template <class P>
+void BufferCache<P>::RefreshMultiRangeSegments(std::vector<MultiRangeSegment>& pool) {
+    if constexpr (requires { runtime.BindMultiRangeStorageBuffer(u64{}, bool{}); }) {
+        // Resolving one segment can join, and so delete, the buffer of another; repeat until
+        // every segment points at a live buffer.
+        for (int pass = 0; pass < 16; ++pass) {
+            bool resolved = false;
+            for (MultiRangeSegment& segment : pool) {
+                if (!segment.buffer_id) {
+                    segment.buffer_id = FindBuffer(segment.device_addr, segment.size,
+                                                   runtime.PrefersSparseSources());
+                    resolved = true;
+                }
+            }
+            if (!resolved) {
+                return;
+            }
+        }
+    }
+}
+
+template <class P>
 void BufferCache<P>::ResolveMultiRangeStorage(Binding& binding, bool is_written,
                                               std::vector<MultiRangeSegment>& pool) {
     binding.segment_first = 0;
@@ -1168,6 +1189,18 @@ bool BufferCache<P>::BindMultiRangeStorage(const Binding& binding, bool is_writt
         }
         if (binding.segment_first + binding.segment_count > pool.size()) {
             return false;
+        }
+        for (u32 index = 0; index < binding.segment_count; ++index) {
+            const BufferId id = pool[binding.segment_first + index].buffer_id;
+            if (!id || !slot_buffers.contains(id)) [[unlikely]] {
+                static u32 dead_logs = 0;
+                if (dead_logs < 16) {
+                    ++dead_logs;
+                    LOG_ERROR(HW_GPU, "Multi-range segment points at a deleted buffer_id={}",
+                              id.index);
+                }
+                return false;
+            }
         }
         const bool grouped = binding.segment_size != 0;
         is_written |= grouped && binding.segment_written;
@@ -1424,6 +1457,7 @@ void BufferCache<P>::DoUpdateGraphicsBuffers(bool is_indexed) {
                 PrepareGroupedStorage(bindings, graphics_segments);
             }
         }
+        RefreshMultiRangeSegments(graphics_segments);
     });
 }
 
@@ -1444,6 +1478,7 @@ void BufferCache<P>::DoUpdateComputeBuffers() {
                 PrepareGroupedStorage(bindings, compute_segments);
             }
         }
+        RefreshMultiRangeSegments(compute_segments);
     });
 }
 
@@ -1902,12 +1937,15 @@ void BufferCache<P>::ChangeRegister(BufferId buffer_id) {
         buffer.setLRUID(lru_cache.Insert(buffer_id, frame_tick));
     } else {
         total_used_memory -= Common::AlignUp(size, 1024);
-        lru_cache.Free(buffer.getLRUID());
+        if (buffer.getLRUID() != SIZE_MAX) {
+            lru_cache.Free(buffer.getLRUID());
+            buffer.setLRUID(SIZE_MAX);
+        }
     }
     for (u64 page = page_begin; page != page_end; ++page) {
         if constexpr (insert) {
             page_table[page] = buffer_id;
-        } else {
+        } else if (page_table[page] == buffer_id) {
             page_table[page] = BufferId{};
         }
     }
@@ -1976,7 +2014,7 @@ void BufferCache<P>::CheckPageTableChange(BufferId buffer_id, u64 page_begin, u6
 
 template <class P>
 void BufferCache<P>::TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept {
-    if (buffer_id != NULL_BUFFER_ID) {
+    if (buffer_id != NULL_BUFFER_ID && buffer.getLRUID() != SIZE_MAX) {
         lru_cache.Touch(buffer.getLRUID(), frame_tick);
     }
 }
@@ -2244,6 +2282,15 @@ void BufferCache<P>::DeleteBuffer(BufferId buffer_id, bool do_not_mark) {
     replace(channel_state->transform_feedback_buffers);
     replace(channel_state->compute_uniform_buffers);
     replace(channel_state->compute_storage_buffers);
+    // Multi-range segments hold buffer ids outside the bindings; a join later in the same update
+    // can delete a buffer an earlier segment resolved to.
+    for (auto* pool : {&graphics_segments, &compute_segments}) {
+        for (MultiRangeSegment& segment : *pool) {
+            if (segment.buffer_id == buffer_id) {
+                segment.buffer_id = BufferId{};
+            }
+        }
+    }
 
     // Mark the whole buffer as CPU written to stop tracking CPU writes
     if (!do_not_mark) {

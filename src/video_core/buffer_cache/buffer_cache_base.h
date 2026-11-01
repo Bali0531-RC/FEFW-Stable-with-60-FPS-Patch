@@ -240,6 +240,9 @@ public:
     void ResolveMultiRangeStorage(Binding& binding, bool is_written,
                                   std::vector<MultiRangeSegment>& pool);
 
+    /// Resolves segments whose buffer was deleted by a join later in the same update.
+    void RefreshMultiRangeSegments(std::vector<MultiRangeSegment>& pool);
+
     void UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t size);
 
     void WriteMemory(DAddr device_addr, u64 size);
