@@ -4,6 +4,10 @@
 
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
+> [!IMPORTANT]
+> **Your saves are stored next to `eden.exe`, not in the normal Eden location.**
+> This build is portable: saves live in `user\nand\user\save` **inside the folder you extracted** (the one with `eden.exe`), *not* in `%APPDATA%\eden`. It won't see saves from another Eden install until you copy them in, and deleting or replacing this folder deletes its saves. See [Saves](#saves) below.
+
 **Download:** [FEFW-Stable-60FPS-Portable.zip](../../raw/main/download/FEFW-Stable-60FPS-Portable.zip) (about 37 MB). Extract the whole folder, then follow *Getting started* below.
 
 ## What's different from upstream (xDarkWindx 1.12)
@@ -12,7 +16,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 - **Start-up crash fix:** the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder. It also never deletes a save folder it can't read, where the original code could.
 - **Settings ready for Fortune's Weave:** the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders, VRAM Usage Mode Conservative and tuned graphics settings, already applied. Only controls need setting up.
 - **60 FPS patch included:** installed and on by default. If you have problems with it (uneven frame pacing, glitches), **delete** the folder `user\load\04007EF01F8AE000\60fps` to go back to the game's normal 30 fps. Unticking it under *Add-Ons* isn't always enough. It only works with the game version whose build ID starts `DB93B0125F485060`.
-- **Fully portable:** settings, saves and shader cache all stay inside the folder.
+- **Fully portable:** settings, **saves** and shader cache all stay inside the folder next to `eden.exe` (see [Saves](#saves)).
 - **Runs on any PC:** built without CPU-specific instructions, with the Microsoft C++ runtime included.
 
 ## Requirements
@@ -26,6 +30,14 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 
 1. Extract the whole folder somewhere outside Program Files and run `eden.exe`.
 2. Double-click the empty game list and choose the folder containing your game (or use *File → Load File* to open a `.nup` directly).
+
+## Saves
+
+- **Where they are:** `<your folder>\user\nand\user\save\0000000000000000\<profile ID>\<game ID>\`, inside the folder that holds `eden.exe`. Nothing is written to `%APPDATA%\eden`.
+- **Bring saves from normal Eden or another emulator build:** close both, then copy the whole `%APPDATA%\eden\nand` folder (or the old build's `user\nand`) into this build's `user` folder, replacing the `nand` there. Copy the whole `nand`, not just the save files: it holds your user profile too.
+- **Updating to a new version:** extract it to a new folder and copy your old `user\nand` across (or the whole `user` folder to keep settings and shader cache). Don't extract over the old folder without copying `user` out first.
+- **Back them up:** copy or zip the `user\nand` folder.
+- **Loose files and `.nup` use different save folders.** Loose files save under game ID `0000000000000000`, a `.nup` under `04007EF01F8AE000`. If you switch from loose files to a `.nup` and your saves are missing, close the emulator and copy the `0000000000000000` folder to `04007EF01F8AE000` (same profile folder). If a `04007EF01F8AE000` folder already exists, rename it first. After switching, stick to one format.
 
 ## Troubleshooting
 
