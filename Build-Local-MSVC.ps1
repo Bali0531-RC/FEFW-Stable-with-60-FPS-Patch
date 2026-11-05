@@ -188,7 +188,9 @@ cmake_language(DEFER CALL eden_render_isa_options)
         $fpsText = if ($hasFpsMod) { @"
 
 60 FPS MOD (Fortune's Weave) - already installed in user\load\04007EF01F8AE000\60fps.
-It is on by default (game > right-click > Properties > Add-Ons > "60fps").
+It is on by default. If you have problems with it (uneven frame pacing, glitches),
+DELETE the folder user\load\04007EF01F8AE000\60fps to go back to the normal 30 fps;
+unticking it under Add-Ons isn't always enough.
 It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
@@ -201,12 +203,12 @@ and the Microsoft C++ runtime is included, so nothing needs installing.
 
 GETTING STARTED
 1. Extract this whole folder somewhere (not inside Program Files) and run eden.exe.
-2. It asks for decryption keys on first start: say Yes and pick your prod.keys
-   (or later: Tools > Install Decryption Keys).
-3. Tools > Install Firmware > From Folder (or From ZIP) and pick your firmware.
-4. Add your game folder: double-click the empty game list and choose the folder.
+2. Add your game folder: double-click the empty game list and choose the folder.
+3. Only for encrypted NSP/XCI dumps: add your own keys (Tools > Install Decryption Keys)
+   and firmware (Tools > Install Firmware). Loose-file dumps (exefs/romfs) don't need
+   either; just dismiss the keys prompt if it appears.
 
-Keys, firmware and games are not included: use your own, dumped from your own console.
+No games, keys or firmware are included: use your own, dumped from your own console.
 Everything (settings, saves, keys, firmware, shader cache) stays in the user\ folder here,
 so this doesn't touch any other Eden install. To move it, move the whole folder.
 
