@@ -29,6 +29,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 - **Closes as soon as the game starts:** usually not enough memory for the 12 GB layout. Enlarge the Windows page file and close other heavy apps.
 - **Stuck on loading:** check the game's memory layout is 12 GB (right-click the game → *Properties*).
 - **Short hitches in new areas:** that's first-time shader translation. It's saved to the shader cache, so revisits are smooth.
+- **Freezes of about a second (picture and sound) after playing for a while, even in areas you've visited before:** try setting **VRAM Usage Mode** to **Conservative**. Right-click the game → *Properties → Graphics → Advanced*. On *Aggressive* the texture cache can fill most of your graphics card's memory during a long session and spill over into much slower system RAM. If you use NVIDIA Smooth Motion or other frame generation, try turning it off too, since it uses extra video memory.
 
 ## Building from source
 
