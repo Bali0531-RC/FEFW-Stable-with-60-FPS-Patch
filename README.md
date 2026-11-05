@@ -1,31 +1,41 @@
-# FEFW-Stable-with-60-FPS-Patch
-Portable, ready-to-play Windows build of the Eden FE: Fortune’s Weave emulator fork (based on xDarkWindx 1.12 and Duck912's forks). Runs on any x64 CPU, settings pre-tuned for Fortune’s Weave, plus a start-up crash fix. Bring your own keys, firmware and game.
+# FEFW Stable with 60 FPS Patch
 
-Information:
-Eden FE: Fortune’s Weave – Portable Build
+A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*, based on [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12). Unzip it, add your own keys and firmware, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
-A ready-to-play Windows build of the Eden emulator fork made for Fire Emblem: Fortune’s Weave, based on xDarkWindx’s eden-fefw 1.12. Unzip it, add your own keys and firmware, and play. Nothing to install, and it won’t touch any other Eden setup you have.
+**Download:** see [Releases](../../releases) for `Eden-FEFW-1.12-portable.zip`.
 
-What’s different from upstream 1.12
-Start-up crash fix: the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder. It also never deletes a save folder it can’t read, where the original code could.
-Settings ready for Fortune’s Weave: the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders and tuned graphics settings, already applied. Only controls need setting up.
-Fully portable: settings, saves, keys, firmware and shader cache all stay inside the folder.
-Runs on any PC: built without CPU-specific instructions, with the Microsoft C++ runtime included.
-60 fps cheat included (optional): can be switched under the game’s Properties → Add-Ons. It only works with the matching game version.
-Requirements
-64-bit Windows 10 or 11
-A Vulkan-capable GPU (an NVIDIA RTX card is recommended)
-16 GB of RAM or more, with a large page file: the 12 GB layout reserves a lot of memory up front
-Your own keys, firmware and game, dumped from your own console. None are included.
-Getting started
-Extract the whole folder somewhere outside Program Files and run eden.exe.
-Say Yes when it asks for decryption keys, and pick your prod.keys.
-Tools → Install Firmware, then pick your firmware.
-Double-click the empty game list to add your game folder.
-Credits and licence
+## What's different from upstream 1.12
 
-Built on Eden, Duck912’s Fortune’s Weave fork and xDarkWindx’s 1.12 release. Licensed under GPL-3.0-or-later; the full source for this build is included as source.zip and in this repository.
+- **Start-up crash fix:** the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder. It also never deletes a save folder it can't read, where the original code could.
+- **Settings ready for Fortune's Weave:** the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders and tuned graphics settings, already applied. Only controls need setting up.
+- **60 FPS patch included:** installed and on by default. If frame pacing feels uneven on your PC, untick it under the game's *Properties → Add-Ons → 60fps* to go back to the game's normal 30 fps. It only works with the game version whose build ID starts `DB93B0125F485060`.
+- **Fully portable:** settings, saves, keys, firmware and shader cache all stay inside the folder.
+- **Runs on any PC:** built without CPU-specific instructions, with the Microsoft C++ runtime included.
 
-**If having issues, try deleting the 60 fps patch**
+## Requirements
 
-Locked 30 fps throughout the game after multiple hours of testing on 4090 9800x3d.
+- 64-bit Windows 10 or 11
+- A Vulkan-capable GPU (an NVIDIA RTX card is recommended)
+- **16 GB of RAM or more, with a large page file** (system-managed, or about 32 GB): the 12 GB memory layout reserves a lot of memory up front, and too small a page file makes the emulator close as the game starts
+- Your own keys, firmware and game, dumped from your own console. **None are included.**
+
+## Getting started
+
+1. Extract the whole folder somewhere outside Program Files and run `eden.exe`.
+2. Say **Yes** when it asks for decryption keys, and pick your `prod.keys` (or later: *Tools → Install Decryption Keys*).
+3. *Tools → Install Firmware → From Folder* (or *From ZIP*), then pick your firmware.
+4. Double-click the empty game list to add your game folder.
+
+## Troubleshooting
+
+- **Closes as soon as the game starts:** usually not enough memory for the 12 GB layout. Enlarge the Windows page file and close other heavy apps.
+- **Stuck on loading:** make sure firmware is installed and the game's memory layout is 12 GB (right-click the game → *Properties*).
+- **Short hitches in new areas:** that's first-time shader translation. It's saved to the shader cache, so revisits are smooth.
+
+## Building from source
+
+The emulator source for this build is in `source.zip` (also inside the release download). It builds with Visual Studio 2026 (MSVC) and CMake using `Build-Local-MSVC.ps1`: put the script next to the unpacked source as described in its header, then run `.\Build-Local-MSVC.ps1 -Version 1.12 -Portable`. The pre-set settings it packages live in `portable-config/`.
+
+## Credits and licence
+
+Built on [Eden](https://eden-emu.dev), Duck912's Fortune's Weave fork and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games, keys and firmware from hardware you own.
