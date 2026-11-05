@@ -196,7 +196,7 @@ other versions just ignore it.
 "@ } else { '' }
         @"
 FEFW Stable with 60 FPS Patch - portable Windows x64 build
-(Eden FE: Fortune's Weave fork, based on xDarkWindx eden-fefw $Version)
+(Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
 and the Microsoft C++ runtime is included, so nothing needs installing.

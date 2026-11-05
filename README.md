@@ -1,6 +1,6 @@
 # FEFW Stable with 60 FPS Patch
 
-A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*, based on [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12). Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
+A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
 **Download:** [FEFW-Stable-60FPS-Portable.zip](../../raw/main/download/FEFW-Stable-60FPS-Portable.zip) (about 37 MB). Extract the whole folder, then follow *Getting started* below.
 
@@ -36,4 +36,4 @@ The emulator source for this build is in `source.zip` (also inside the release d
 
 ## Credits and licence
 
-Built on [Eden](https://eden-emu.dev), Duck912's Fortune's Weave fork and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
+Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
