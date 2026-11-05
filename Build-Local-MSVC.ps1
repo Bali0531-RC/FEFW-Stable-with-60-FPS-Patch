@@ -195,7 +195,7 @@ It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-FEFW Stable with 60 FPS Patch - portable Windows x64 build
+FEFW Stable with 60 FPS Patch v1.1 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -205,25 +205,38 @@ GETTING STARTED
 1. Extract this whole folder somewhere (not inside Program Files) and run eden.exe.
 2. Add your game folder: double-click the empty game list and choose the folder.
 
-No games, keys or firmware are included. Use your own copy of the game as loose files
-(exefs/romfs), dumped from your own console.
+No games, keys or firmware are included. Use your own copy of the game, dumped from
+your own console, as loose files (exefs/romfs) or a single .nup file.
 Everything (settings, saves, shader cache) stays in the user\ folder here,
 so this doesn't touch any other Eden install. To move it, move the whole folder.
 
 SETTINGS are already set up, including a Fortune's Weave profile (right-click the game >
-Properties) with the 12 GB memory layout the game needs, GPU mode Fast and asynchronous shaders.
+Properties) with the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders
+and VRAM Usage Mode Conservative (avoids long-session freezes).
 Only controls need setting: Emulation > Configure > Controls.
 $fpsText
 
-Changes from upstream: the start-up check that clears empty save profile folders no longer
-crashes when Windows refuses the delete, and never deletes a folder it could not read.
+Changes from upstream:
+- Loads .nup game files (NUP loader ported from Djihads80's Eglantine, GPL-3.0).
+- The start-up check that clears empty save profile folders no longer crashes when Windows
+  refuses the delete, and never deletes a folder it could not read.
 
 Licence: GPL-3.0-or-later (see LICENSE). The full source for this build is in source.zip.
 Built with MSVC $clVersion on $(Get-Date -Format 'yyyy-MM-dd').
 "@ | Set-Content -LiteralPath (Join-Path $outDir 'README.txt') -Encoding ASCII
         $pkg = "$outDir.zip"
         if (Test-Path $pkg) { Remove-Item -LiteralPath $pkg -Force }
-        Compress-Archive -Path (Join-Path $outDir '*') -DestinationPath $pkg -CompressionLevel Optimal
+        # Zip with forward-slash entry names (Compress-Archive on Windows PowerShell writes
+        # backslashes, which 7-Zip and non-Windows tools extract as flat file names).
+        Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+        $archive = [IO.Compression.ZipFile]::Open($pkg, [IO.Compression.ZipArchiveMode]::Create)
+        try {
+            Get-ChildItem -LiteralPath $outDir -Recurse -File | ForEach-Object {
+                $entry = $_.FullName.Substring($outDir.Length + 1).Replace('\', '/')
+                [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                    $archive, $_.FullName, $entry, [IO.Compression.CompressionLevel]::Optimal)
+            }
+        } finally { $archive.Dispose() }
         Write-Host "Package: $pkg" -ForegroundColor Green
     }
 

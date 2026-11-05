@@ -1,13 +1,16 @@
 # FEFW Stable with 60 FPS Patch
 
+**Current version: v1.1** — adds `.nup` game support and safer VRAM settings. See [CHANGELOG.md](CHANGELOG.md).
+
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
 **Download:** [FEFW-Stable-60FPS-Portable.zip](../../raw/main/download/FEFW-Stable-60FPS-Portable.zip) (about 37 MB). Extract the whole folder, then follow *Getting started* below.
 
 ## What's different from upstream (xDarkWindx 1.12)
 
+- **Plays `.nup` files:** load the game as a single `.nup` package as well as loose files. The NUP loader is ported from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine). Playing only: packing, unpacking and editing NUPs aren't included, and add-on content inside a `.nup` isn't loaded.
 - **Start-up crash fix:** the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder. It also never deletes a save folder it can't read, where the original code could.
-- **Settings ready for Fortune's Weave:** the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders and tuned graphics settings, already applied. Only controls need setting up.
+- **Settings ready for Fortune's Weave:** the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders, VRAM Usage Mode Conservative and tuned graphics settings, already applied. Only controls need setting up.
 - **60 FPS patch included:** installed and on by default. If you have problems with it (uneven frame pacing, glitches), **delete** the folder `user\load\04007EF01F8AE000\60fps` to go back to the game's normal 30 fps. Unticking it under *Add-Ons* isn't always enough. It only works with the game version whose build ID starts `DB93B0125F485060`.
 - **Fully portable:** settings, saves and shader cache all stay inside the folder.
 - **Runs on any PC:** built without CPU-specific instructions, with the Microsoft C++ runtime included.
@@ -17,19 +20,19 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 - 64-bit Windows 10 or 11
 - A Vulkan-capable GPU (an NVIDIA RTX card is recommended)
 - **16 GB of RAM or more, with a large page file** (system-managed, or about 32 GB): the 12 GB memory layout reserves a lot of memory up front, and too small a page file makes the emulator close as the game starts
-- Your own copy of the game as loose files (exefs/romfs), dumped from your own console. **No games, keys or firmware are included.**
+- Your own copy of the game, dumped from your own console, as loose files (exefs/romfs) or a single `.nup` file. **No games, keys or firmware are included.**
 
 ## Getting started
 
 1. Extract the whole folder somewhere outside Program Files and run `eden.exe`.
-2. Double-click the empty game list and choose the folder containing your game.
+2. Double-click the empty game list and choose the folder containing your game (or use *File → Load File* to open a `.nup` directly).
 
 ## Troubleshooting
 
 - **Closes as soon as the game starts:** usually not enough memory for the 12 GB layout. Enlarge the Windows page file and close other heavy apps.
 - **Stuck on loading:** check the game's memory layout is 12 GB (right-click the game → *Properties*).
 - **Short hitches in new areas:** that's first-time shader translation. It's saved to the shader cache, so revisits are smooth.
-- **Freezes of about a second (picture and sound) after playing for a while, even in areas you've visited before:** try setting **VRAM Usage Mode** to **Conservative**. Right-click the game → *Properties → Graphics → Advanced*. On *Aggressive* the texture cache can fill most of your graphics card's memory during a long session and spill over into much slower system RAM.
+- **Freezes of about a second (picture and sound) after playing for a while, even in areas you've visited before:** make sure **VRAM Usage Mode** is **Conservative** (the default since v1.1). Right-click the game → *Properties → Graphics → Advanced*. On *Aggressive* the texture cache can fill most of your graphics card's memory during a long session and spill over into much slower system RAM.
 
 ## Building from source
 
@@ -37,4 +40,4 @@ The emulator source for this build is in `source.zip` (also inside the release d
 
 ## Credits and licence
 
-Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
+Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
