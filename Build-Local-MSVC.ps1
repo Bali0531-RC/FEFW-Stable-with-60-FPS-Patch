@@ -170,7 +170,7 @@ cmake_language(DEFER CALL eden_render_isa_options)
         # saves inside this folder instead of %APPDATA%\eden.
         $userDir = Join-Path $outDir 'user'
         New-Item -ItemType Directory -Force -Path $userDir | Out-Null
-        'Eden keeps its keys, firmware, settings and saves in this folder. Delete it to use %APPDATA%\eden instead.' |
+        'Eden keeps its settings, saves and shader cache in this folder. Delete it to use %APPDATA%\eden instead.' |
             Set-Content -LiteralPath (Join-Path $userDir 'README.txt') -Encoding ASCII
         # Pre-set settings (cleaned copy of this PC's: no paths, controller IDs or logins), including
         # the Fortune's Weave per-game profile with the 12 GB memory layout the game needs.
@@ -204,12 +204,10 @@ and the Microsoft C++ runtime is included, so nothing needs installing.
 GETTING STARTED
 1. Extract this whole folder somewhere (not inside Program Files) and run eden.exe.
 2. Add your game folder: double-click the empty game list and choose the folder.
-3. Only for encrypted NSP/XCI dumps: add your own keys (Tools > Install Decryption Keys)
-   and firmware (Tools > Install Firmware). Loose-file dumps (exefs/romfs) don't need
-   either; just dismiss the keys prompt if it appears.
 
-No games, keys or firmware are included: use your own, dumped from your own console.
-Everything (settings, saves, keys, firmware, shader cache) stays in the user\ folder here,
+No games, keys or firmware are included. Use your own copy of the game as loose files
+(exefs/romfs), dumped from your own console.
+Everything (settings, saves, shader cache) stays in the user\ folder here,
 so this doesn't touch any other Eden install. To move it, move the whole folder.
 
 SETTINGS are already set up, including a Fortune's Weave profile (right-click the game >
