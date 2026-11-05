@@ -2,9 +2,9 @@
 
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*, based on [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12). Unzip it, add your own keys and firmware, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
-**Download:** see [Releases](../../releases) for `Eden-FEFW-1.12-portable.zip`.
+**Download:** see [Releases](../../releases) for `FEFW-Stable-60FPS-Portable.zip`.
 
-## What's different from upstream 1.12
+## What's different from upstream (xDarkWindx 1.12)
 
 - **Start-up crash fix:** the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder. It also never deletes a save folder it can't read, where the original code could.
 - **Settings ready for Fortune's Weave:** the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders and tuned graphics settings, already applied. Only controls need setting up.

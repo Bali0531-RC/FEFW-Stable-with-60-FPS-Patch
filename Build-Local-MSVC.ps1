@@ -4,7 +4,7 @@
 # Output goes to .\Eden-FEFW-local\eden.exe. The existing .\eden.exe is not touched.
 # 1.12 build:  .\Build-Local-MSVC.ps1 -Version 1.12   (source eden-fefw-1.12, output Eden-FEFW-1.12-local)
 # Shareable:   .\Build-Local-MSVC.ps1 -Version 1.12 -Portable
-#              (any x64 CPU, VC++ runtime bundled, output Eden-FEFW-1.12-portable + .zip)
+#              (any x64 CPU, VC++ runtime bundled, output FEFW-Stable-60FPS-Portable + .zip)
 
 [CmdletBinding()]
 param(
@@ -39,7 +39,7 @@ if ($Version -eq '1.12') {
 }
 if ($Portable) {
     $buildDir = "$buildDir-portable"
-    $outDir   = $outDir -replace '-local$', '-portable'
+    $outDir   = Join-Path $root 'FEFW-Stable-60FPS-Portable'
 }
 $logFile   = Join-Path $root 'build-log.txt'
 $pgoCompiler = '19.51.36260'
@@ -193,7 +193,8 @@ It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-Eden FE: Fortune's Weave ($Version) - portable Windows x64 build
+FEFW Stable with 60 FPS Patch - portable Windows x64 build
+(Eden FE: Fortune's Weave fork, based on xDarkWindx eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
 and the Microsoft C++ runtime is included, so nothing needs installing.
