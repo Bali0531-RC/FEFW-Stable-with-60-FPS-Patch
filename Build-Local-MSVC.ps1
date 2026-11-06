@@ -308,6 +308,8 @@ Changes from upstream:
 - Optional NVIDIA DLSS in place of the game's own DLSS (from Duck912's work in Eglantine).
 - Cutscenes keep up: AV1 videos are decoded several frames at once, so the busiest 1440p
   cutscenes no longer drop the game to about 5 FPS.
+- A user folder copied from another build uses its own saves and folders here, not the old
+  build's (and Open Save Data Location opens the one next to this exe).
 - Smoother 60 FPS in busy scenes: texture-handle tables the game builds on the GPU and never
   changes are no longer waited for once a frame, and CPU writes to GPU memory take the cache
   lock far less often. In Dagsion's busiest section at 60 FPS, doubled frames went from about
