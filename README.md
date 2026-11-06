@@ -1,6 +1,6 @@
 # Fortune's Eden (FEFW Stable with 60 FPS Patch)
 
-**Current version: v1.3.1** — smoother 60 FPS in busy scenes (in Dagsion's busiest section, doubled frames went from about 45% to about 20%) and fewer shader-compile stutters. See [CHANGELOG.md](CHANGELOG.md).
+**Current version: v1.4** — optional **NVIDIA DLSS** in place of the game's own DLSS (sharper, less ghosting on GeForce RTX cards), and new default image settings: FSR at 0% sharpness with FXAA. See [CHANGELOG.md](CHANGELOG.md).
 
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
@@ -16,6 +16,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 
 ## What's different from upstream (xDarkWindx 1.12)
 
+- **Optional NVIDIA DLSS:** on GeForce RTX cards, the game's own lightweight DLSS (the Switch 2's upscaler, which can leave ghosting around moving characters) can be replaced with the full PC version of NVIDIA DLSS. Off by default; see [NVIDIA DLSS](#nvidia-dlss-optional). Ported from Duck912's work in [Eglantine](https://github.com/Djihads80/Eglantine).
 - **Smoother 60 FPS in busy scenes:** the game builds some texture-handle tables on the GPU and reads them a few draws later. The emulator used to stop and wait for the GPU about once a frame to read them back, although they never change. It now uses the copy it has and checks it against the GPU's version afterwards, going back to waiting if they ever differ. CPU writes to GPU memory also take the cache lock far less often. In Dagsion's busiest section at 60 FPS (1x), doubled frames went from about 45% to about 20%.
 - **Fewer shader-compile stutters:** translated shaders are reused between graphics pipelines that share them, so new areas hitch less the first time (Wael3rd, from PokeDinner, an Eglantine fork).
 - **Faster on the CPU side:** built with profile-guided optimisation (PGO) trained on Fortune's Weave (Dagsion, battles, menus). The emulator's own code for feeding the GPU is laid out for the paths the game actually uses; it still runs on any x64 CPU. In testing at 60 FPS it cut doubled frames by about a quarter.
@@ -24,7 +25,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 - **AMD graphics fix:** shader registers that a game reads before writing are treated as zero, as NVIDIA hardware does, instead of leftover garbage, which on AMD GPUs can show as stray coloured patches. Ported from Eglantine (by arisqz).
 - **Shutdown and restart fixes:** no hang when stopping the game if its audio renderer outlives its manager (kraibse), and starting the game again in the same window no longer hangs or crashes (Takoroka), both from PokeDinner, an Eglantine fork. Clearer logs for missing keys and unsupported system calls, and an error-reporting crash fix (xDarkWindx).
 - **Start-up crash fix:** the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder, and never deletes a save folder it can't read.
-- **Settings ready for Fortune's Weave, all global:** the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative, AMD FSR window filter at 50% sharpness and anti-aliasing off, set under *Emulation → Configure* so they apply however your game is dumped or packed. Only controls need setting up.
+- **Settings ready for Fortune's Weave, all global:** the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative, AMD FSR window filter at 0% sharpness and FXAA anti-aliasing, set under *Emulation → Configure* so they apply however your game is dumped or packed. Only controls need setting up.
 - **Fully portable:** settings, **saves** and shader cache all stay in the `user` folder next to `Fortune's Eden.exe` (see [Saves](#saves)).
 - **Runs on any PC:** built without CPU-specific instructions, with the Microsoft C++ runtime included.
 
@@ -48,6 +49,16 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 - **Updating to a new version:** extract it to a new folder and copy your old `user\nand` across (or the whole `user` folder to keep settings and shader cache). Don't extract over the old folder without copying `user` out first.
 - **Back them up:** copy or zip the `user\nand` folder.
 
+## NVIDIA DLSS (optional)
+
+For GeForce RTX cards. The game renders at a lower resolution and upscales with its own small DLSS network, built for the Switch 2. This build can hand that step to the full PC version of NVIDIA DLSS instead, using the game's own colour, depth and motion data: a sharper picture with less ghosting.
+
+1. *Emulation → Configure → Graphics*, tick **Use NVIDIA DLSS in place of the game's DLSS**.
+2. In the panel below it, click **Download from NVIDIA** and accept NVIDIA's licences. NVIDIA's files aren't included in this download; they're fetched from NVIDIA's own Streamline release into `user\streamline` (if the NVIDIA app has already downloaded DLSS, only a 1 MB file is needed).
+3. Start the game. If DLSS can't run, the game's own DLSS is used as before.
+
+Recommended with it: *Window Adapting Filter* FSR at **0%** sharpness (or Bilinear) and **FXAA**, the defaults. Higher FSR sharpness on top of DLSS looks oversharpened.
+
 ## Troubleshooting
 
 - **Closes as soon as the game starts:** usually not enough memory for the 12 GB layout. Enlarge the Windows page file and close other heavy apps.
@@ -70,4 +81,4 @@ That gives `FEFW-Stable-60FPS-Portable` (with `Fortune's Eden.exe`) and a zip of
 
 ## Credits and licence
 
-Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader and AMD fix from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine), and shader reuse and shutdown fixes from PokeDinner (Wael3rd, kraibse, Takoroka). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
+Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader, AMD fix and NVIDIA DLSS support from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) (Duck912, arisqz), and shader reuse and shutdown fixes from PokeDinner (Wael3rd, kraibse, Takoroka). NVIDIA DLSS and Streamline are NVIDIA's; none of NVIDIA's files are included. Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.

@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.4
+
+> **30 FPS is how Fortune's Weave runs on Switch 2**, and this build runs it smoothly by default. The 60 FPS patch stays **off by default**.
+
+- **Optional NVIDIA DLSS in place of the game's own DLSS** (GeForce RTX cards). The game upscales with a small DLSS network made for the Switch 2, which can leave ghosting around moving characters. With *Graphics → Use NVIDIA DLSS in place of the game's DLSS* ticked, the full PC version of NVIDIA DLSS (through NVIDIA Streamline) does that step instead, from the game's own colour, depth, motion vectors and camera jitter. Off by default. NVIDIA's files aren't included: the **Download from NVIDIA** button under the setting fetches them from NVIDIA's Streamline release (or uses the DLSS the NVIDIA app has downloaded). If DLSS can't run, the game's own DLSS runs as before. Ported from Duck912's work in Eglantine; this build looks up DLSS's input images without creating any, which stopped driver crashes in an early port.
+- **New default image settings:** AMD FSR window filter at **0% sharpness** (was 50%) and **FXAA** anti-aliasing (was off). FXAA softens the ghosting of the game's own DLSS, and 50% sharpness looked oversharpened with NVIDIA DLSS.
+
+**Updating from v1.3.1:** extract v1.4 to a new folder and copy your old `user` folder into it. A copied `user` folder keeps your old image settings: set *Window Adapting Filter* sharpness to 0% and *Anti-Aliasing* to FXAA yourself if you want the new defaults.
+
 ## v1.3.1
 
 > **30 FPS is how Fortune's Weave runs on Switch 2**, and this build still runs it smoothly by default. The 60 FPS patch stays **off by default**, but it's noticeably smoother in busy scenes now; on a fast PC, try it at **1x resolution**.

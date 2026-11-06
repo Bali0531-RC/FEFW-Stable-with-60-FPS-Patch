@@ -274,7 +274,7 @@ It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.3.1 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -297,9 +297,15 @@ is dumped or packed: the 12 GB memory layout the game needs, GPU accuracy Fast, 
 shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative (avoids
 long-session freezes), AMD FSR window filter at 0% sharpness and FXAA anti-aliasing.
 Only controls need setting: Emulation > Configure > Controls.
+
+NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tick
+"Use NVIDIA DLSS in place of the game's DLSS", then click "Download from NVIDIA" in the panel
+below it (NVIDIA's files aren't included). Takes effect when the game starts. It replaces the
+game's own lightweight DLSS with the full PC version: sharper, with less ghosting.
 $fpsText
 
 Changes from upstream:
+- Optional NVIDIA DLSS in place of the game's own DLSS (from Duck912's work in Eglantine).
 - Smoother 60 FPS in busy scenes: texture-handle tables the game builds on the GPU and never
   changes are no longer waited for once a frame, and CPU writes to GPU memory take the cache
   lock far less often. In Dagsion's busiest section at 60 FPS, doubled frames went from about
