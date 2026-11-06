@@ -5,6 +5,12 @@
 # 1.12 build:  .\Build-Local-MSVC.ps1 -Version 1.12   (source eden-fefw-1.12, output Eden-FEFW-1.12-local)
 # Shareable:   .\Build-Local-MSVC.ps1 -Version 1.12 -Portable
 #              (any x64 CPU, VC++ runtime bundled, output FEFW-Stable-60FPS-Portable + .zip)
+# PGO for the shareable build (profile-guided optimisation, still runs on any x64 CPU):
+#   1. .\Build-Local-MSVC.ps1 -Version 1.12 -Portable -Pgo Train
+#      builds a measuring copy in FEFW-PGO-Training. Play Fortune's Weave in it (busy areas,
+#      battles, menus) for 10-20 minutes, then close the emulator normally.
+#   2. .\Build-Local-MSVC.ps1 -Version 1.12 -Portable -Pgo Use
+#      builds FEFW-Stable-60FPS-Portable optimised with what step 1 recorded (pgo-fefw\).
 
 [CmdletBinding()]
 param(
@@ -12,13 +18,15 @@ param(
     [string]$Version = 'kcode',
     [ValidateSet('AVX512', 'AVX2', 'None')]
     [string]$RenderIsa = 'AVX512',          # Ryzen 7 9800X3D (Zen 5) supports AVX-512
-    [ValidateSet('Auto', 'On', 'Off')]
+    [ValidateSet('Auto', 'On', 'Off', 'Train', 'Use')]
     [string]$Pgo = 'Auto',                  # Auto: only with the compiler and source the profile was made with
+                                            # Train/Use: portable PGO, see the header
     [switch]$Portable,                      # build for any x64 CPU and package it for other people
     [int]$Jobs = [Environment]::ProcessorCount,
     [switch]$Clean
 )
-if ($Portable) { $RenderIsa = 'None'; $Pgo = 'Off' }
+if ($Pgo -in 'Train', 'Use' -and -not $Portable) { throw '-Pgo Train/Use are for the portable build: add -Portable.' }
+if ($Portable) { $RenderIsa = 'None'; if ($Pgo -notin 'Train', 'Use') { $Pgo = 'Off' } }
 
 $ErrorActionPreference = 'Stop'
 $root      = $PSScriptRoot
@@ -40,6 +48,14 @@ if ($Version -eq '1.12') {
 if ($Portable) {
     $buildDir = "$buildDir-portable"
     $outDir   = Join-Path $root 'FEFW-Stable-60FPS-Portable'
+}
+# Portable PGO: Train and Use share one build folder (compiled with /GL), so Use only re-links.
+$fefwPgoDir = Join-Path $root 'pgo-fefw'
+$trainDir   = Join-Path $root 'FEFW-PGO-Training'
+if ($Pgo -in 'Train', 'Use') {
+    $buildDir = "$buildDir-pgo"
+    if ($Pgo -eq 'Train') { $outDir = $trainDir }
+    if ($root -match '\s') { throw "PGO needs a folder path without spaces; move this folder (now $root)." }
 }
 $logFile   = Join-Path $root 'build-log.txt'
 $pgoCompiler = '19.51.36260'
@@ -88,12 +104,52 @@ try {
         'On'   { $true }
         'Off'  { $false }
         'Auto' { $Version -eq 'kcode' -and $clVersion -eq $pgoCompiler -and (Test-Path (Join-Path $pgoDir 'eden.pgd')) }
+        default { $Pgo -eq 'Use' }
+    }
+    $pgd = (Join-Path $fefwPgoDir 'eden.pgd').Replace('\', '/')
+    if ($Pgo -eq 'Use') {
+        # The instrumented eden.exe writes eden!N.pgc files when it closes; the linker merges the
+        # ones next to the .pgd, so gather any left beside the training copy.
+        if (-not (Test-Path (Join-Path $fefwPgoDir 'eden.pgd'))) { throw 'No training profile yet: run -Pgo Train first.' }
+        if (Test-Path $trainDir) {
+            Get-ChildItem -LiteralPath $trainDir -Filter 'eden!*.pgc' -File |
+                Move-Item -Destination $fefwPgoDir -Force
+        }
+        $pgc = @(Get-ChildItem -LiteralPath $fefwPgoDir -Filter 'eden!*.pgc' -File)
+        if (-not $pgc) { throw "No eden!*.pgc files in $fefwPgoDir or $trainDir. Play the game in FEFW-PGO-Training\eden.exe and close it normally first." }
+        Write-Host "PGO: using $($pgc.Count) training run(s)" -ForegroundColor Green
+    } elseif ($Pgo -eq 'Train') {
+        # A new training build makes a new .pgd; old runs no longer match it.
+        if (Test-Path $fefwPgoDir) { Remove-Item -LiteralPath $fefwPgoDir -Recurse -Force }
+        New-Item -ItemType Directory -Path $fefwPgoDir | Out-Null
     }
 
     if ($Clean -and (Test-Path $buildDir)) { Remove-Item -LiteralPath $buildDir -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
-    if ($RenderIsa -eq 'None') {
+    if ($RenderIsa -eq 'None' -and $Pgo -in 'Train', 'Use') {
+        Write-Host "Portable: no CPU-specific code, PGO stage $Pgo" -ForegroundColor Green
+        # Whole-program optimisation (/GL) for the emulator's hot libraries, which PGO needs to work
+        # on them, plus the profile stage on the eden.exe link.
+        $stage = if ($Pgo -eq 'Train') { "/FASTGENPROFILE:NOEXACT,COUNTER64,PGD=$pgd" } else { "/USEPROFILE:PGD=$pgd" }
+        $include = Join-Path $buildDir 'pgo-fefw.cmake'
+        New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+        @"
+function(eden_fefw_pgo)
+    if(MSVC)
+        foreach(lib IN ITEMS common core video_core shader_recompiler audio_core hid_core)
+            if(TARGET `${lib})
+                set_property(TARGET `${lib} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+            endif()
+        endforeach()
+        if(TARGET yuzu)
+            target_link_options(yuzu PRIVATE /LTCG $stage)
+        endif()
+    endif()
+endfunction()
+cmake_language(DEFER CALL eden_fefw_pgo)
+"@ | Set-Content -LiteralPath $include -Encoding ASCII
+    } elseif ($RenderIsa -eq 'None') {
         Write-Host 'Portable: no CPU-specific code, no PGO' -ForegroundColor Green
         $include = $null
     } elseif ($usePgo) {
@@ -152,6 +208,10 @@ cmake_language(DEFER CALL eden_render_isa_options)
     Copy-Item -Path (Join-Path $buildDir 'bin\*') -Destination $outDir -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $outDir -ErrorAction SilentlyContinue
 
+    # The shareable build is called Fortune's Eden (the training copy keeps eden.exe for Save-PGO.ps1).
+    $appExe = if ($Portable -and $Pgo -ne 'Train') { "Fortune's Eden.exe" } else { 'eden.exe' }
+    if ($appExe -ne 'eden.exe') { Rename-Item -LiteralPath (Join-Path $outDir 'eden.exe') -NewName $appExe }
+
     if ($Portable) {
         Remove-Item -LiteralPath (Join-Path $outDir 'eden.pdb') -ErrorAction SilentlyContinue
         # App-local VC++ runtime, so nobody needs to install the redistributable.
@@ -166,7 +226,7 @@ cmake_language(DEFER CALL eden_render_isa_options)
         # The Fortune's Weave 60 fps cheat from this PC's profile, for others to copy into theirs.
         $fpsMod = Join-Path $env:APPDATA 'eden\load\04007EF01F8AE000\60fps'
         $hasFpsMod = Test-Path $fpsMod
-        # Portable profile: a "user" folder next to eden.exe keeps keys, firmware, settings and
+        # Portable profile: a "user" folder next to the exe keeps keys, firmware, settings and
         # saves inside this folder instead of %APPDATA%\eden.
         $userDir = Join-Path $outDir 'user'
         New-Item -ItemType Directory -Force -Path $userDir | Out-Null
@@ -189,27 +249,32 @@ cmake_language(DEFER CALL eden_render_isa_options)
         $fpsText = if ($hasFpsMod) { @"
 
 60 FPS MOD (Fortune's Weave) - included in user\load\04007EF01F8AE000\60fps, but
-OFF by default: its frame pacing is poor and can feel choppy, while 30 fps runs smoothly.
-To try it, right-click the game > Properties > Add-Ons and tick 60fps.
+OFF by default. 30 fps is the game's native framerate on Switch 2 and runs smoothly
+everywhere, while 60 fps can feel choppy.
+Fast PC? It's fairly smooth on high-end CPUs at 1x resolution (FSR upscales to your
+screen); higher resolutions roughly double the choppiness. To try it, right-click the
+game > Properties > Add-Ons and tick 60fps.
 If it causes problems, untick it; if it still feels choppy, DELETE the folder
 user\load\04007EF01F8AE000\60fps (unticking it isn't always enough).
 It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-FEFW Stable with 60 FPS Patch v1.2.1 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.3 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
 and the Microsoft C++ runtime is included, so nothing needs installing.
 
 GETTING STARTED
-1. Extract this whole folder somewhere (not inside Program Files) and run eden.exe.
+1. Extract this whole folder somewhere (not inside Program Files) and run Fortune's Eden.exe.
 2. Add your game folder: double-click the empty game list and choose the folder.
 
 No games, keys or firmware are included. Use your own copy of the game, dumped from
 your own console, as loose files (exefs/romfs) or a single .nup file.
-SAVES ARE STORED HERE, next to eden.exe (user\nand), NOT in %APPDATA%\eden.
+SAVES ARE STORED HERE, next to Fortune's Eden.exe (user\nand), NOT in %APPDATA%\eden.
+Loose files and .nup now share the same saves. Saves made with loose files in older versions
+are copied across automatically the first time.
 Everything (settings, saves, shader cache) stays in the user\ folder here, so this doesn't
 touch any other Eden install. To move it, move the whole folder. Deleting it deletes your saves.
 
@@ -221,6 +286,11 @@ Only controls need setting: Emulation > Configure > Controls.
 $fpsText
 
 Changes from upstream:
+- Loose-file dumps use the game's real ID, so their saves sit with .nup saves.
+- Shutdown and restart fixes: no hang when the audio renderer outlives its manager
+  (kraibse), and a second game in the same window no longer hangs (Takoroka); both from
+  PokeDinner (an Eglantine fork). Clearer logs for missing keys and unsupported commands
+  (xDarkWindx).
 - Loads .nup game files (NUP loader ported from Djihads80's Eglantine, GPL-3.0).
 - AMD fix: shader registers read before being written are zero, as on NVIDIA, instead of
   garbage (stray coloured patches on AMD GPUs). From Eglantine (arisqz), GPL-3.0.
@@ -228,8 +298,27 @@ Changes from upstream:
   refuses the delete, and never deletes a folder it could not read.
 
 Licence: GPL-3.0-or-later (see LICENSE). The full source for this build is in source.zip.
-Built with MSVC $clVersion on $(Get-Date -Format 'yyyy-MM-dd').
+Built with MSVC $clVersion on $(Get-Date -Format 'yyyy-MM-dd')$(if ($Pgo -eq 'Use') { ', with profile-guided optimisation trained on Fortune''s Weave' }).
 "@ | Set-Content -LiteralPath (Join-Path $outDir 'README.txt') -Encoding ASCII
+    }
+    if ($Pgo -eq 'Train') {
+        # The measuring eden.exe needs the PGO runtime beside it.
+        $pgort = Get-ChildItem -Path (Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64') -Filter 'pgort*.dll' -File |
+                 Select-Object -First 1
+        if (-not $pgort) { throw "pgort*.dll not found under $env:VCToolsInstallDir" }
+        Copy-Item -LiteralPath $pgort.FullName -Destination $outDir
+        Write-Host "`nTRAINING BUILD READY: $outDir\eden.exe" -ForegroundColor Green
+        Write-Host @"
+Next:
+ 1. Optional: copy your saves in (your play folder's user\nand -> $outDir\user\nand).
+ 2. Run $outDir\eden.exe and play Fortune's Weave for 10-20 minutes: busy towns,
+    battles, menus, a cutscene. It runs a little slower while measuring; that's expected.
+ 3. Close the emulator normally (not from Task Manager), so it saves the measurements.
+ 4. Run: .\Build-Local-MSVC.ps1 -Version 1.12 -Portable -Pgo Use
+"@ -ForegroundColor Yellow
+        return
+    }
+    if ($Portable) {
         $pkg = "$outDir.zip"
         if (Test-Path $pkg) { Remove-Item -LiteralPath $pkg -Force }
         # Zip with forward-slash entry names (Compress-Archive on Windows PowerShell writes
@@ -246,7 +335,7 @@ Built with MSVC $clVersion on $(Get-Date -Format 'yyyy-MM-dd').
         Write-Host "Package: $pkg" -ForegroundColor Green
     }
 
-    Write-Host "`nBUILD SUCCEEDED: $outDir\eden.exe" -ForegroundColor Green
+    Write-Host "`nBUILD SUCCEEDED: $outDir\$appExe" -ForegroundColor Green
     Write-Host "MSVC $clVersion | PGO $(if ($usePgo) {'on'} else {'off'}) | renderer $RenderIsa"
 }
 catch {
