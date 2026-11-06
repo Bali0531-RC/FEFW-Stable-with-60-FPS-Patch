@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.1
+
+- **12 GB memory layout is now the global default**, not only in the Fortune's Weave profile. The profile only applies when the game's ID matches exactly, so some dumps (for example a `.nup` packed with a different ID) or an old `user` folder copied over could fall back to 4 GB and hang on loading. The emulator itself is unchanged from v1.2.
+
+**Updating from v1.2:** no need to re-download if your game loads. Otherwise set *Emulation → Configure → System → Memory Layout* to **12 GB**, or extract v1.2.1 and copy your `user\nand` folder into it.
+
 ## v1.2
 
 > **The 60 FPS patch is now OFF by default.** Its frame pacing is poor and can feel choppy, while 30 FPS runs flawlessly. It's still included: to try it, right-click the game → *Properties → Add-Ons* and tick **60fps**.

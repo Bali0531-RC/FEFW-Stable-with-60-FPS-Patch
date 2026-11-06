@@ -196,7 +196,7 @@ It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-FEFW Stable with 60 FPS Patch v1.2 - portable Windows x64 build
+FEFW Stable with 60 FPS Patch v1.2.1 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -212,8 +212,9 @@ SAVES ARE STORED HERE, next to eden.exe (user\nand), NOT in %APPDATA%\eden.
 Everything (settings, saves, shader cache) stays in the user\ folder here, so this doesn't
 touch any other Eden install. To move it, move the whole folder. Deleting it deletes your saves.
 
-SETTINGS are already set up, including a Fortune's Weave profile (right-click the game >
-Properties) with the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders,
+SETTINGS are already set up: the 12 GB memory layout the game needs is set globally (so it
+applies however the game is dumped or packed), plus a Fortune's Weave profile (right-click the
+game > Properties) with GPU mode Fast, asynchronous shaders,
 VRAM Usage Mode Conservative (avoids long-session freezes), AMD FSR window filter at 50%
 sharpness and anti-aliasing off.
 Only controls need setting: Emulation > Configure > Controls.
