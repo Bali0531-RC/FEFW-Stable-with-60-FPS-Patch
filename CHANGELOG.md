@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.1
+
+- **Fixed: the sky sometimes turning dark** (seen in Dagsion since v1.3.1). v1.3.1 started reusing the game's texture-handle tables without waiting for the GPU once they had come back identical 8 times, checking the GPU's copy afterwards. A table that did change could show the old handles for a moment, and the shortcut was trusted again shortly after. Now a table needs 32 identical downloads before the shortcut is used, a table that ever changes is always waited for from then on, and every table is still read for real at least every 250 ms. Changes are logged (`Texture-handle table ... changed`). Tables that never change keep the speed-up, so 60 FPS keeps most of the v1.3.1 gain. `EDEN_SPECULATIVE_HANDLES=0` still turns the shortcut off.
+
+**Updating from v1.4:** extract v1.4.1 to a new folder and copy your old `user` folder into it.
+
 ## v1.4
 
 > **30 FPS is how Fortune's Weave runs on Switch 2**, and this build runs it smoothly by default. The 60 FPS patch stays **off by default**.

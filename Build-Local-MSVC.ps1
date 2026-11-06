@@ -274,7 +274,7 @@ It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4.1 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
