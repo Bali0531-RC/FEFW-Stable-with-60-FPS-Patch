@@ -7,8 +7,6 @@
 
 - **A copied `user` folder now uses its own saves.** Settings stored the full path of the build's NAND, SD, mod and dump folders, so a `user` folder copied into a new build (as the update steps say) kept using the folders of the build it came from: saves kept going to the old folder, and *Open Save Data Location* opened that one. Paths pointing at another build's `user\nand` (and `sdmc`, `load`, `dump`, `tas`) are now ignored in favour of this build's own, and this build's own folders are stored without a full path, so the `user` folder works wherever it is copied. A folder you picked yourself elsewhere is kept. If you updated by copying a `user` folder before, your latest saves may still be in the old build's `user\nand`: copy that `nand` folder over this build's `user\nand`.
 
-**Known issue:** with NVIDIA DLSS on, the game has sometimes crashed when going from a pre-rendered cutscene back into the game. If it crashes, untick NVIDIA DLSS first.
-
 **Updating from v1.4:** extract v1.4.1 to a new folder and copy your old `user` folder into it.
 
 ## v1.4
