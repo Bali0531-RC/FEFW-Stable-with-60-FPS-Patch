@@ -1,6 +1,6 @@
 # Fortune's Eden (FEFW Stable with 60 FPS Patch)
 
-**Current version: v1.4.1** — cutscenes no longer drop to about 5 FPS (AV1 videos are decoded several frames at once), a copied `user` folder now uses its own saves (Open Save Data Location opens the folder next to the exe), plus a stricter check on the v1.3.1 handle-table shortcut. v1.4 added optional **NVIDIA DLSS** in place of the game's own DLSS (sharper, less ghosting on GeForce RTX cards) and new default image settings: FSR at 0% sharpness with FXAA. See [CHANGELOG.md](CHANGELOG.md).
+**Current version: v1.4.2** — fixes 3D scenes losing their background (bath scenes going black around the characters). v1.4.1 stopped cutscenes dropping to about 5 FPS and made a copied `user` folder use its own saves; v1.4 added optional **NVIDIA DLSS** and new default image settings (FSR at 0% sharpness with FXAA). See [CHANGELOG.md](CHANGELOG.md).
 
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 

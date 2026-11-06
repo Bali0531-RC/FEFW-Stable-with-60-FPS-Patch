@@ -274,7 +274,7 @@ It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4.1 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4.2 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -306,6 +306,8 @@ $fpsText
 
 Changes from upstream:
 - Optional NVIDIA DLSS in place of the game's own DLSS (from Duck912's work in Eglantine).
+- Bath scenes no longer lose their background: a compute shader using a shared-memory
+  compare-and-swap (ATOMS.CAS) is now translated instead of skipped.
 - Cutscenes keep up: AV1 videos are decoded several frames at once, so the busiest 1440p
   cutscenes no longer drop the game to about 5 FPS.
 - A user folder copied from another build uses its own saves and folders here, not the old

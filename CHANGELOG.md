@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.2
+
+- **Fixed: 3D scenes losing their background** (bath scenes went black around the characters, sometimes only after a while). Some scenes use a compute shader with a shared-memory compare-and-swap (`ATOMS.CAS`), which the native shader translator didn't support, so every run of it was skipped. It's now translated (to a Vulkan atomic compare-exchange).
+
+**Updating from v1.4.1:** replace `Fortune's Eden.exe` with the new one, or extract v1.4.2 to a new folder and copy your old `user` folder into it.
+
 ## v1.4.1
 
 - **Cutscenes no longer drop to about 5 FPS.** Fortune's Weave's 1440p cutscenes are AV1 videos, and in their busiest scenes decoding a frame took up to ~40 ms, more than the 33 ms a 30 FPS video allows. Whenever the video fell behind, the game's frame rate collapsed until the scene got lighter. Their frames are encoded as a single tile, so the decoder (libgav1) worked mostly on one thread however many it had. It now decodes several frames at once (frame-parallel, 12 threads on a 16-thread CPU): in the same cutscene the decoder now keeps up with time to spare, and the cutscene plays at a steady 30 FPS. `EDEN_AV1_THREADS=N` sets the thread count; `EDEN_AV1_FRAME_PARALLEL=0` decodes one frame at a time as before.
