@@ -16,7 +16,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 
 ## What's different from upstream (xDarkWindx 1.12)
 
-- **Optional NVIDIA DLSS:** on GeForce RTX cards, the game's own lightweight DLSS (the Switch 2's upscaler, which can leave ghosting around moving characters) can be replaced with the full PC version of NVIDIA DLSS. Off by default; see [NVIDIA DLSS](#nvidia-dlss-optional). Ported from Duck912's work in [Eglantine](https://github.com/Djihads80/Eglantine).
+- **Optional NVIDIA DLSS:** on GeForce RTX cards, the game's own lightweight DLSS (the Switch 2's upscaler, which can leave ghosting around moving characters) can be replaced with the full PC version of NVIDIA DLSS. Off by default, and it can cause crashes; see [NVIDIA DLSS](#nvidia-dlss-optional). Ported from Duck912's work in [Eglantine](https://github.com/Djihads80/Eglantine).
 - **Smoother 60 FPS in busy scenes:** the game builds some texture-handle tables on the GPU and reads them a few draws later. The emulator used to stop and wait for the GPU about once a frame to read them back, although they never change. It now uses the copy it has and checks it against the GPU's version afterwards, going back to waiting if they ever differ. CPU writes to GPU memory also take the cache lock far less often. In Dagsion's busiest section at 60 FPS (1x), doubled frames went from about 45% to about 20%.
 - **Fewer shader-compile stutters:** translated shaders are reused between graphics pipelines that share them, so new areas hitch less the first time (Wael3rd, from PokeDinner, an Eglantine fork).
 - **Faster on the CPU side:** built with profile-guided optimisation (PGO) trained on Fortune's Weave (Dagsion, battles, menus). The emulator's own code for feeding the GPU is laid out for the paths the game actually uses; it still runs on any x64 CPU. In testing at 60 FPS it cut doubled frames by about a quarter.
@@ -52,6 +52,8 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 ## NVIDIA DLSS (optional)
 
 For GeForce RTX cards. The game renders at a lower resolution and upscales with its own small DLSS network, built for the Switch 2. This build can hand that step to the full PC version of NVIDIA DLSS instead, using the game's own colour, depth and motion data: a sharper picture with less ghosting.
+
+> **Warning: NVIDIA DLSS can cause crashes.** It's newer and less tested than the rest of this build: in testing the game sometimes crashed when going from a pre-rendered cutscene back into the game with it on. If the game crashes, untick it first.
 
 1. *Emulation → Configure → Graphics*, tick **Use NVIDIA DLSS in place of the game's DLSS**.
 2. In the panel below it, click **Download from NVIDIA** and accept NVIDIA's licences. NVIDIA's files aren't included in this download; they're fetched from NVIDIA's own Streamline release into `user\streamline` (if the NVIDIA app has already downloaded DLSS, only a 1 MB file is needed).
