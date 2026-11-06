@@ -295,7 +295,7 @@ touch any other Eden install. To move it, move the whole folder. Deleting it del
 SETTINGS are already set up globally (Emulation > Configure), so they apply however the game
 is dumped or packed: the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous
 shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative (avoids
-long-session freezes), AMD FSR window filter at 50% sharpness and anti-aliasing off.
+long-session freezes), AMD FSR window filter at 0% sharpness and anti-aliasing off.
 Only controls need setting: Emulation > Configure > Controls.
 $fpsText
 
