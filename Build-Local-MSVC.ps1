@@ -187,15 +187,16 @@ cmake_language(DEFER CALL eden_render_isa_options)
         }
         $fpsText = if ($hasFpsMod) { @"
 
-60 FPS MOD (Fortune's Weave) - already installed in user\load\04007EF01F8AE000\60fps.
-It is on by default. If you have problems with it (uneven frame pacing, glitches),
-DELETE the folder user\load\04007EF01F8AE000\60fps to go back to the normal 30 fps;
-unticking it under Add-Ons isn't always enough.
+60 FPS MOD (Fortune's Weave) - included in user\load\04007EF01F8AE000\60fps, but
+OFF by default: its frame pacing is poor and can feel choppy, while 30 fps runs smoothly.
+To try it, right-click the game > Properties > Add-Ons and tick 60fps.
+If it causes problems, untick it; if it still feels choppy, DELETE the folder
+user\load\04007EF01F8AE000\60fps (unticking it isn't always enough).
 It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-FEFW Stable with 60 FPS Patch v1.1 - portable Windows x64 build
+FEFW Stable with 60 FPS Patch v1.2 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -207,17 +208,21 @@ GETTING STARTED
 
 No games, keys or firmware are included. Use your own copy of the game, dumped from
 your own console, as loose files (exefs/romfs) or a single .nup file.
-Everything (settings, saves, shader cache) stays in the user\ folder here,
-so this doesn't touch any other Eden install. To move it, move the whole folder.
+SAVES ARE STORED HERE, next to eden.exe (user\nand), NOT in %APPDATA%\eden.
+Everything (settings, saves, shader cache) stays in the user\ folder here, so this doesn't
+touch any other Eden install. To move it, move the whole folder. Deleting it deletes your saves.
 
 SETTINGS are already set up, including a Fortune's Weave profile (right-click the game >
-Properties) with the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders
-and VRAM Usage Mode Conservative (avoids long-session freezes).
+Properties) with the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders,
+VRAM Usage Mode Conservative (avoids long-session freezes), AMD FSR window filter at 50%
+sharpness and anti-aliasing off.
 Only controls need setting: Emulation > Configure > Controls.
 $fpsText
 
 Changes from upstream:
 - Loads .nup game files (NUP loader ported from Djihads80's Eglantine, GPL-3.0).
+- AMD fix: shader registers read before being written are zero, as on NVIDIA, instead of
+  garbage (stray coloured patches on AMD GPUs). From Eglantine (arisqz), GPL-3.0.
 - The start-up check that clears empty save profile folders no longer crashes when Windows
   refuses the delete, and never deletes a folder it could not read.
 

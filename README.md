@@ -1,12 +1,12 @@
 # FEFW Stable with 60 FPS Patch
 
-**Current version: v1.1** — adds `.nup` game support and safer VRAM settings. See [CHANGELOG.md](CHANGELOG.md).
+**Current version: v1.2** — 60 FPS patch now off by default, an AMD graphics fix, and FSR 50% / no anti-aliasing preset. See [CHANGELOG.md](CHANGELOG.md).
 
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
 > [!WARNING]
-> **The 60 FPS patch has poor frame pacing: it can feel choppy and uneven. At the game's normal 30 FPS this build runs flawlessly.**
-> The patch is on by default. For the smoothest experience, turn it off. If it still feels choppy **delete** the folder `user\load\04007EF01F8AE000\60fps` (next to `eden.exe`). Unticking it under *Add-Ons* isn't always enough.
+> **The 60 FPS patch is now OFF by default (since v1.2).** Its frame pacing is poor and can feel choppy and uneven, while at the game's normal 30 FPS this build runs flawlessly.
+> The patch is still included. To try it, right-click the game → *Properties → Add-Ons* and tick **60fps**. If it causes problems, untick it again; if it still feels choppy, **delete** the folder `user\load\04007EF01F8AE000\60fps` (next to `eden.exe`), as unticking it isn't always enough.
 
 > [!IMPORTANT]
 > **Your saves are stored next to `eden.exe`, not in the normal Eden location.**
@@ -17,9 +17,10 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 ## What's different from upstream (xDarkWindx 1.12)
 
 - **Plays `.nup` files:** load the game as a single `.nup` package as well as loose files. The NUP loader is ported from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine). Playing only: packing, unpacking and editing NUPs aren't included, and add-on content inside a `.nup` isn't loaded.
+- **AMD graphics fix:** shader registers that a game reads before writing are treated as zero, as NVIDIA hardware does, instead of leftover garbage, which on AMD GPUs can show as stray coloured patches. Ported from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) (by arisqz).
 - **Start-up crash fix:** the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder. It also never deletes a save folder it can't read, where the original code could.
-- **Settings ready for Fortune's Weave:** the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders, VRAM Usage Mode Conservative and tuned graphics settings, already applied. Only controls need setting up.
-- **60 FPS patch included (optional):** installed and on by default, but its frame pacing is poor and can feel choppy; 30 FPS is smooth. Turn it off under the game's *Properties → Add-Ons*. If it still feels choppy, **delete** the folder `user\load\04007EF01F8AE000\60fps` to go back to the game's normal 30 fps; unticking it isn't always enough. It only works with the game version whose build ID starts `DB93B0125F485060`.
+- **Settings ready for Fortune's Weave:** the 12 GB memory layout the game needs, GPU mode Fast, asynchronous shaders, VRAM Usage Mode Conservative, AMD FSR window filter at 50% sharpness, anti-aliasing off and other tuned graphics settings, already applied. Only controls need setting up.
+- **60 FPS patch included, off by default:** its frame pacing is poor and can feel choppy, while 30 FPS is smooth. To try it, tick **60fps** under the game's *Properties → Add-Ons*. If it still feels choppy after unticking it, **delete** the folder `user\load\04007EF01F8AE000\60fps`. It only works with the game version whose build ID starts `DB93B0125F485060`.
 - **Fully portable:** settings, **saves** and shader cache all stay inside the folder next to `eden.exe` (see [Saves](#saves)).
 - **Runs on any PC:** built without CPU-specific instructions, with the Microsoft C++ runtime included.
 
@@ -52,8 +53,13 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 
 ## Building from source
 
-The emulator source for this build is in `source.zip` (also inside the release download). It builds with Visual Studio 2026 (MSVC) and CMake using `Build-Local-MSVC.ps1`: put the script next to the unpacked source as described in its header, then run `.\Build-Local-MSVC.ps1 -Version 1.12 -Portable`. The pre-set settings it packages live in `portable-config/`.
+The emulator source for this build is in `source.zip` (also inside the release download). It builds with Visual Studio 2026 (MSVC 19.51) and CMake:
+
+1. Put `Build-Local-MSVC.ps1`, `cmake-options.txt`, `LICENSE`, the `portable-config` folder and `source.zip` together in one folder, and rename `source.zip` to `eden-fefw-1.12-local.zip`.
+2. In PowerShell in that folder: `Set-ExecutionPolicy -Scope Process Bypass; .\Build-Local-MSVC.ps1 -Version 1.12 -Portable`
+
+The output is `FEFW-Stable-60FPS-Portable` and a zip of it, with the settings from `portable-config/`.
 
 ## Credits and licence
 
-Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
+Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader and AMD fix from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
