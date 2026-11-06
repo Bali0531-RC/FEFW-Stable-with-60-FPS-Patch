@@ -1,6 +1,6 @@
 # Fortune's Eden (FEFW Stable with 60 FPS Patch)
 
-**Current version: v1.3** — profile-guided optimisation trained on Fortune's Weave, loose files and `.nup` share one save folder, the app is now called *Fortune's Eden*, and shutdown fixes from other forks. See [CHANGELOG.md](CHANGELOG.md).
+**Current version: v1.3.1** — smoother 60 FPS in busy scenes (in Dagsion's busiest section, doubled frames went from about 45% to about 20%) and fewer shader-compile stutters. See [CHANGELOG.md](CHANGELOG.md).
 
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
@@ -16,6 +16,8 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 
 ## What's different from upstream (xDarkWindx 1.12)
 
+- **Smoother 60 FPS in busy scenes:** the game builds some texture-handle tables on the GPU and reads them a few draws later. The emulator used to stop and wait for the GPU about once a frame to read them back, although they never change. It now uses the copy it has and checks it against the GPU's version afterwards, going back to waiting if they ever differ. CPU writes to GPU memory also take the cache lock far less often. In Dagsion's busiest section at 60 FPS (1x), doubled frames went from about 45% to about 20%.
+- **Fewer shader-compile stutters:** translated shaders are reused between graphics pipelines that share them, so new areas hitch less the first time (Wael3rd, from PokeDinner, an Eglantine fork).
 - **Faster on the CPU side:** built with profile-guided optimisation (PGO) trained on Fortune's Weave (Dagsion, battles, menus). The emulator's own code for feeding the GPU is laid out for the paths the game actually uses; it still runs on any x64 CPU. In testing at 60 FPS it cut doubled frames by about a quarter.
 - **One save folder for loose files and `.nup`:** loose-file dumps now use the game's real ID, like `.nup`, cartridge and eShop dumps. Saves made with loose files in older versions are copied across automatically the first time (the old copy is kept).
 - **Plays `.nup` files:** load the game as a single `.nup` package as well as loose files. The NUP loader is ported from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine). Playing only: packing, unpacking and editing NUPs aren't included, and add-on content inside a `.nup` isn't loaded.
@@ -68,4 +70,4 @@ That gives `FEFW-Stable-60FPS-Portable` (with `Fortune's Eden.exe`) and a zip of
 
 ## Credits and licence
 
-Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader and AMD fix from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) and shutdown fixes from PokeDinner (kraibse, Takoroka). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
+Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader and AMD fix from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine), and shader reuse and shutdown fixes from PokeDinner (Wael3rd, kraibse, Takoroka). Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.

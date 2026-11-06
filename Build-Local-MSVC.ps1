@@ -23,6 +23,8 @@ param(
                                             # Train/Use: portable PGO, see the header
     [switch]$Portable,                      # build for any x64 CPU and package it for other people
     [int]$Jobs = [Environment]::ProcessorCount,
+    [switch]$Symbols,                       # with -Pgo Train/Use: debugging symbols (eden.pdb) for
+                                            # profiling, built in a separate folder; same code
     [switch]$Clean
 )
 if ($Pgo -in 'Train', 'Use' -and -not $Portable) { throw '-Pgo Train/Use are for the portable build: add -Portable.' }
@@ -55,6 +57,7 @@ $trainDir   = Join-Path $root 'FEFW-PGO-Training'
 if ($Pgo -in 'Train', 'Use') {
     $buildDir = "$buildDir-pgo"
     if ($Pgo -eq 'Train') { $outDir = $trainDir }
+    if ($Symbols) { $buildDir = "$buildDir-sym" }
     if ($root -match '\s') { throw "PGO needs a folder path without spaces; move this folder (now $root)." }
 }
 $logFile   = Join-Path $root 'build-log.txt'
@@ -132,6 +135,11 @@ try {
         # Whole-program optimisation (/GL) for the emulator's hot libraries, which PGO needs to work
         # on them, plus the profile stage on the eden.exe link.
         $stage = if ($Pgo -eq 'Train') { "/FASTGENPROFILE:NOEXACT,COUNTER64,PGD=$pgd" } else { "/USEPROFILE:PGD=$pgd" }
+        # -Symbols: debug information in the objects (/Z7) and a full .pdb. /OPT can't be set
+        # here: with /USEPROFILE the linker refuses options the training link didn't have.
+        $symCompile = if ($Symbols) { '/Z7' } else { '' }
+        $symLink = if ($Symbols) { '/DEBUG:FULL' } else { '' }
+        if ($Symbols) { Write-Host "Symbols: on (build folder $buildDir)" -ForegroundColor Green }
         $include = Join-Path $buildDir 'pgo-fefw.cmake'
         New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
         @"
@@ -140,10 +148,16 @@ function(eden_fefw_pgo)
         foreach(lib IN ITEMS common core video_core shader_recompiler audio_core hid_core)
             if(TARGET `${lib})
                 set_property(TARGET `${lib} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+                if("$symCompile")
+                    target_compile_options(`${lib} PRIVATE $symCompile)
+                endif()
             endif()
         endforeach()
         if(TARGET yuzu)
-            target_link_options(yuzu PRIVATE /LTCG $stage)
+            target_link_options(yuzu PRIVATE /LTCG $stage $symLink)
+            if("$symCompile")
+                target_compile_options(yuzu PRIVATE $symCompile)
+            endif()
         endif()
     endif()
 endfunction()
@@ -213,7 +227,7 @@ cmake_language(DEFER CALL eden_render_isa_options)
     if ($appExe -ne 'eden.exe') { Rename-Item -LiteralPath (Join-Path $outDir 'eden.exe') -NewName $appExe }
 
     if ($Portable) {
-        Remove-Item -LiteralPath (Join-Path $outDir 'eden.pdb') -ErrorAction SilentlyContinue
+        if (-not $Symbols) { Remove-Item -LiteralPath (Join-Path $outDir 'eden.pdb') -ErrorAction SilentlyContinue }
         # App-local VC++ runtime, so nobody needs to install the redistributable.
         if (-not $env:VCToolsRedistDir) { throw 'VCToolsRedistDir is not set; run from a normal PowerShell so the script sets up the VS environment.' }
         $crt = Get-ChildItem -Path (Join-Path $env:VCToolsRedistDir 'x64') -Directory -Filter 'Microsoft.VC*.CRT' |
@@ -260,7 +274,7 @@ It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.3 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.3.1 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -286,6 +300,12 @@ Only controls need setting: Emulation > Configure > Controls.
 $fpsText
 
 Changes from upstream:
+- Smoother 60 FPS in busy scenes: texture-handle tables the game builds on the GPU and never
+  changes are no longer waited for once a frame, and CPU writes to GPU memory take the cache
+  lock far less often. In Dagsion's busiest section at 60 FPS, doubled frames went from about
+  45% to about 20%.
+- Fewer shader-compile stutters: translated shaders are reused between pipelines that share
+  them (Wael3rd, from PokeDinner).
 - Loose-file dumps use the game's real ID, so their saves sit with .nup saves.
 - Shutdown and restart fixes: no hang when the audio renderer outlives its manager
   (kraibse), and a second game in the same window no longer hangs (Takoroka); both from
