@@ -172,8 +172,9 @@ cmake_language(DEFER CALL eden_render_isa_options)
         New-Item -ItemType Directory -Force -Path $userDir | Out-Null
         'Eden keeps its settings, saves and shader cache in this folder. Delete it to use %APPDATA%\eden instead.' |
             Set-Content -LiteralPath (Join-Path $userDir 'README.txt') -Encoding ASCII
-        # Pre-set settings (cleaned copy of this PC's: no paths, controller IDs or logins), including
-        # the Fortune's Weave per-game profile with the 12 GB memory layout the game needs.
+        # Pre-set settings (cleaned copy of this PC's: no paths, controller IDs or logins). Everything,
+        # including the 12 GB memory layout Fortune's Weave needs, is global so it applies whatever
+        # title ID the game is loaded under.
         $presetConfig = Join-Path $root 'portable-config'
         if (Test-Path $presetConfig) {
             Copy-Item -Path $presetConfig -Destination (Join-Path $userDir 'config') -Recurse
@@ -212,11 +213,10 @@ SAVES ARE STORED HERE, next to eden.exe (user\nand), NOT in %APPDATA%\eden.
 Everything (settings, saves, shader cache) stays in the user\ folder here, so this doesn't
 touch any other Eden install. To move it, move the whole folder. Deleting it deletes your saves.
 
-SETTINGS are already set up: the 12 GB memory layout the game needs is set globally (so it
-applies however the game is dumped or packed), plus a Fortune's Weave profile (right-click the
-game > Properties) with GPU mode Fast, asynchronous shaders,
-VRAM Usage Mode Conservative (avoids long-session freezes), AMD FSR window filter at 50%
-sharpness and anti-aliasing off.
+SETTINGS are already set up globally (Emulation > Configure), so they apply however the game
+is dumped or packed: the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous
+shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative (avoids
+long-session freezes), AMD FSR window filter at 50% sharpness and anti-aliasing off.
 Only controls need setting: Emulation > Configure > Controls.
 $fpsText
 

@@ -1,6 +1,6 @@
 # FEFW Stable with 60 FPS Patch
 
-**Current version: v1.2.1** — 60 FPS patch off by default, an AMD graphics fix, FSR 50% / no anti-aliasing preset, and the 12 GB memory layout now set globally. See [CHANGELOG.md](CHANGELOG.md).
+**Current version: v1.2.1** — 60 FPS patch off by default, an AMD graphics fix, FSR 50% / no anti-aliasing preset, and all settings now global so they apply however the game is dumped. See [CHANGELOG.md](CHANGELOG.md).
 
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
@@ -19,7 +19,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 - **Plays `.nup` files:** load the game as a single `.nup` package as well as loose files. The NUP loader is ported from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine). Playing only: packing, unpacking and editing NUPs aren't included, and add-on content inside a `.nup` isn't loaded.
 - **AMD graphics fix:** shader registers that a game reads before writing are treated as zero, as NVIDIA hardware does, instead of leftover garbage, which on AMD GPUs can show as stray coloured patches. Ported from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) (by arisqz).
 - **Start-up crash fix:** the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder. It also never deletes a save folder it can't read, where the original code could.
-- **Settings ready for Fortune's Weave:** the 12 GB memory layout the game needs (set globally, so it applies however your game is dumped or packed), GPU mode Fast, asynchronous shaders, VRAM Usage Mode Conservative, AMD FSR window filter at 50% sharpness, anti-aliasing off and other tuned graphics settings, already applied. Only controls need setting up.
+- **Settings ready for Fortune's Weave, all global:** the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative, AMD FSR window filter at 50% sharpness and anti-aliasing off. They're set under *Emulation → Configure*, not in a per-game profile, so they apply however your game is dumped or packed. Only controls need setting up.
 - **60 FPS patch included, off by default:** its frame pacing is poor and can feel choppy, while 30 FPS is smooth. To try it, tick **60fps** under the game's *Properties → Add-Ons*. If it still feels choppy after unticking it, **delete** the folder `user\load\04007EF01F8AE000\60fps`. It only works with the game version whose build ID starts `DB93B0125F485060`.
 - **Fully portable:** settings, **saves** and shader cache all stay inside the folder next to `eden.exe` (see [Saves](#saves)).
 - **Runs on any PC:** built without CPU-specific instructions, with the Microsoft C++ runtime included.
@@ -47,9 +47,9 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 ## Troubleshooting
 
 - **Closes as soon as the game starts:** usually not enough memory for the 12 GB layout. Enlarge the Windows page file and close other heavy apps.
-- **Stuck on loading:** the game needs the 12 GB memory layout. Check *Emulation → Configure → System* and the game's own *Properties → System* both say 12 GB (copying a `user` folder from an older build can bring back 4 GB).
+- **Stuck on loading:** the game needs the 12 GB memory layout. Check *Emulation → Configure → System → Memory Layout* says 12 GB. If you've ever changed the game's own settings (right-click the game → *Properties → System*), check there too, since a per-game setting overrides the global one. Copying a `user` folder from an older build can also bring back 4 GB.
 - **Short hitches in new areas:** that's first-time shader translation. It's saved to the shader cache, so revisits are smooth.
-- **Freezes of about a second (picture and sound) after playing for a while, even in areas you've visited before:** make sure **VRAM Usage Mode** is **Conservative** (the default since v1.1). Right-click the game → *Properties → Graphics → Advanced*. On *Aggressive* the texture cache can fill most of your graphics card's memory during a long session and spill over into much slower system RAM.
+- **Freezes of about a second (picture and sound) after playing for a while, even in areas you've visited before:** make sure **VRAM Usage Mode** is **Conservative** (the default since v1.1): *Emulation → Configure → Graphics → Advanced* (and the game's own *Properties*, if you've changed it there). On *Aggressive* the texture cache can fill most of your graphics card's memory during a long session and spill over into much slower system RAM.
 
 ## Building from source
 
