@@ -3,6 +3,7 @@
 ## v1.4.2
 
 - **Fixed: 3D scenes losing their background** (bath scenes went black around the characters, sometimes only after a while). Some scenes use a compute shader with a shared-memory compare-and-swap (`ATOMS.CAS`), which the native shader translator didn't support, so every run of it was skipped. It's now translated (to a Vulkan atomic compare-exchange).
+- **Another bath-scene shader no longer skipped:** a float add to GPU memory (`RED.ADD.F32`) is now translated too.
 
 **Updating from v1.4.1:** replace `Fortune's Eden.exe` with the new one, or extract v1.4.2 to a new folder and copy your old `user` folder into it.
 
