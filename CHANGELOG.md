@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.4.3
+
+- **Slightly smoother busy scenes.** In crowds the GPU back thread, which limits the frame rate there, asks "has the GPU written to this memory?" about 850,000 times a second, and 87% of the answers are no. A bitmap with one bit per 4 KiB page now answers most of those without searching the range tree. The answers are exactly the same (a page is only cleared after a full search finds it empty); tested against a byte-by-byte reference over about 1.7 million random queries. A small gain in crowded towns, none elsewhere. `EDEN_NO_PAGE_FILTER=1` turns it off.
+- **Much smaller logs.** A 34-minute session wrote a 27 MB log, too big to send most places: 87% of it was one line written every frame. That line now only appears for the first few frames and when the picture size changes, and "Unmapped Device ReadBlock" is logged once per read instead of once per 4 KiB page. The same session now writes about 1-2 MB.
+- **Optional ultrawide 3440x1440 patch** by [Kompas9](https://github.com/Kompas9/Switch-Game-Patches) (MIT, v1.1), for 21:9 monitors: widens the 3D camera and keeps the HUD, menus and movies centred at 16:9. It's in the new `Optional mods` folder and **not installed**; its `README.txt` says how to turn it on (copy the folder into `user\load\04007EF01F8AE000` and set Aspect Ratio to *Stretch to Window*). It's kept out of the mod folder so nobody gets it by accident, including when copying an older `user` folder over this one. Only for game version 1.1.0 (build ID `DB93B0125F485060`).
+- **Known issue: the sky can turn dark after closing the map** in Dagsion. It comes from the emulator base this build is built on (xDarkWindx's 1.12 has it too), and it's being investigated. Opening and closing a menu usually brings the blue sky back.
+
+**Updating from v1.4.2:** replace `Fortune's Eden.exe` with the new one (and copy the `Optional mods` folder if you want the ultrawide patch), or extract v1.4.3 to a new folder and copy your old `user` folder into it.
+
 ## v1.4.2
 
 - **Fixed: 3D scenes losing their background** (bath scenes went black around the characters, sometimes only after a while). Some scenes use a compute shader with a shared-memory compare-and-swap (`ATOMS.CAS`), which the native shader translator didn't support, so every run of it was skipped. It's now translated (to a Vulkan atomic compare-exchange).

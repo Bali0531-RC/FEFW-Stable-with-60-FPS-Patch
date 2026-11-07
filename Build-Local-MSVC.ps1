@@ -255,6 +255,15 @@ cmake_language(DEFER CALL eden_render_isa_options)
         } else {
             Write-Warning 'portable-config not found: the package will start with default settings, and Fortune''s Weave needs the 12 GB memory layout.'
         }
+        # Optional mods (Kompas9's ultrawide patch): beside the exe, NOT in user\load, so nobody
+        # gets one by accident, including people who copy an older user folder over this one.
+        $optionalMods = Join-Path $root 'optional-mods'
+        $hasOptional = Test-Path $optionalMods
+        if ($hasOptional) {
+            Copy-Item -Path $optionalMods -Destination (Join-Path $outDir 'Optional mods') -Recurse
+        } else {
+            Write-Warning 'optional-mods not found: the package will not include the ultrawide patch.'
+        }
         if ($hasFpsMod) {
             $modDest = Join-Path $userDir 'load\04007EF01F8AE000'
             New-Item -ItemType Directory -Force -Path $modDest | Out-Null
@@ -273,8 +282,15 @@ user\load\04007EF01F8AE000\60fps (unticking it isn't always enough).
 It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
+        $optionalText = if ($hasOptional) { @"
+
+ULTRAWIDE 3440x1440 (optional, OFF) - Kompas9's ultrawide patch is in the "Optional mods"
+folder. It is not installed: to use it on a 21:9 monitor, follow the README.txt in
+Optional mods\Ultrawide-3440x1440-v1.1 (copy that folder into user\load\04007EF01F8AE000
+and set Aspect Ratio to Stretch to Window).
+"@ } else { '' }
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4.2 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4.3 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -304,10 +320,15 @@ NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tic
 "Use NVIDIA DLSS in place of the game's DLSS", then click "Download from NVIDIA" in the panel
 below it (NVIDIA's files aren't included). Takes effect when the game starts. It replaces the
 game's own lightweight DLSS with the full PC version: sharper, with less ghosting.
-$fpsText
+$fpsText$optionalText
 
 Changes from upstream:
 - Optional NVIDIA DLSS in place of the game's own DLSS (from Duck912's work in Eglantine).
+- Slightly smoother busy scenes: the GPU back thread answers most "has the GPU written here?"
+  checks from a page bitmap instead of searching a tree (same answers).
+- Much smaller logs: no line per frame, one line per unmapped memory read, so long sessions'
+  logs stay small enough to send.
+- Optional ultrawide 3440x1440 patch by Kompas9 (MIT), in "Optional mods", not installed.
 - Bath scenes no longer lose their background: a compute shader using a shared-memory
   compare-and-swap (ATOMS.CAS) is now translated instead of skipped.
 - Cutscenes keep up: AV1 videos are decoded several frames at once, so the busiest 1440p
