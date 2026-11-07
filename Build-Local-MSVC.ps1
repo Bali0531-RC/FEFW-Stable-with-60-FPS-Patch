@@ -325,6 +325,13 @@ $fpsText$optionalText
 
 Changes from upstream:
 - Optional NVIDIA DLSS in place of the game's own DLSS (from Duck912's work in Eglantine).
+- The sky no longer turns black after opening the map: the texture cache threw away the game's
+  sky colour table while the map covered the screen, without keeping what the GPU had drawn.
+  Small images the GPU drew are now always kept.
+- No more recurring stutter from an experiment left on by mistake in v1.3.1 to v1.4.2 (held
+  CPU writes reached the GPU a frame late, so frames came out unevenly).
+- CPU Clocks (Boost/Overclock) is gone: it ran the game's clock 1.7-2x fast, so cutscene voices
+  dropped out and dialogue animations ended early.
 - Slightly smoother busy scenes: the GPU back thread answers most "has the GPU written here?"
   checks from a page bitmap instead of searching a tree (same answers).
 - Much smaller logs: no line per frame, one line per unmapped memory read, so long sessions'
@@ -337,9 +344,7 @@ Changes from upstream:
 - A user folder copied from another build uses its own saves and folders here, not the old
   build's (and Open Save Data Location opens the one next to this exe).
 - Smoother 60 FPS in busy scenes: texture-handle tables the game builds on the GPU and never
-  changes are no longer waited for once a frame, and CPU writes to GPU memory take the cache
-  lock far less often. In Dagsion's busiest section at 60 FPS, doubled frames went from about
-  45% to about 20%.
+  changes are no longer waited for once a frame.
 - Fewer shader-compile stutters: translated shaders are reused between pipelines that share
   them (Wael3rd, from PokeDinner).
 - Loose-file dumps use the game's real ID, so their saves sit with .nup saves.
