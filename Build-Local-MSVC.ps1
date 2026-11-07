@@ -284,8 +284,8 @@ GETTING STARTED
 1. Extract this whole folder somewhere (not inside Program Files) and run Fortune's Eden.exe.
 2. Add your game folder: double-click the empty game list and choose the folder.
 
-LEGAL USE ONLY. No games, keys, firmware or other Nintendo files are included, and piracy
-is not supported. Use your own legally obtained copy of the game, dumped from your own
+LEGAL USE ONLY. Piracy is not acceptable and is not supported in any way. No games, keys,
+firmware or other Nintendo files are included. Use your own legally obtained copy of the game, dumped from your own
 console, as loose files (exefs/romfs) or a single .nup file, with keys and firmware dumped
 from that same console. Not affiliated with, endorsed by or sponsored by Nintendo or NVIDIA.
 SAVES ARE STORED HERE, next to Fortune's Eden.exe (user\nand), NOT in %APPDATA%\eden.

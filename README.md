@@ -9,7 +9,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 > **Fast PC?** A 60 FPS patch is included but **off by default**, because 60 FPS can feel choppy. On high-end CPUs it's fairly smooth at **1x resolution** (FSR upscales to your screen); higher resolutions roughly double the choppiness. To try it, right-click the game → *Properties → Add-Ons* and tick **60fps**. If it causes problems, untick it; if it still feels choppy, **delete** the folder `user\load\04007EF01F8AE000\60fps` (next to `Fortune's Eden.exe`), as unticking it isn't always enough.
 
 > [!CAUTION]
-> **Legal use only. This project does not support or allow piracy.**
+> **Legal use only. Piracy is not acceptable and is not supported in any way.** Please support the developers by buying the games you play.
 > - **Nothing of Nintendo's is included or linked:** no games, ROMs, keys (`prod.keys`, `title.keys`), firmware, system files or copyrighted game assets. This repository, its releases and its downloads contain only the emulator, its source code, settings, and a small community cheat code for 60 FPS.
 > - **You need your own legally obtained copy of the game, dumped yourself from your own console**, along with your own keys and firmware dumped from that same console. How to get these is not covered here, and no help is given for obtaining them any other way.
 > - **Issues, discussions or requests involving pirated games, shared keys or downloaded firmware will be closed** without help.
