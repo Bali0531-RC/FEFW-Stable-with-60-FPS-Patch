@@ -255,6 +255,15 @@ cmake_language(DEFER CALL eden_render_isa_options)
         } else {
             Write-Warning 'portable-config not found: the package will start with default settings, and Fortune''s Weave needs the 12 GB memory layout.'
         }
+        # Kompas9's ultrawide patch is built into the exe (setting fefw_ultrawide): its MIT notice.
+        $uwLicense = Join-Path $root 'licenses\ultrawide-kompas9'
+        if (Test-Path $uwLicense) {
+            $uwDest = Join-Path $outDir 'licenses\ultrawide-kompas9'
+            New-Item -ItemType Directory -Force -Path $uwDest | Out-Null
+            Copy-Item -Path (Join-Path $uwLicense '*') -Destination $uwDest
+        } else {
+            Write-Warning 'licenses\ultrawide-kompas9 not found: the package will lack the ultrawide patch notice.'
+        }
         if ($hasFpsMod) {
             $modDest = Join-Path $userDir 'load\04007EF01F8AE000'
             New-Item -ItemType Directory -Force -Path $modDest | Out-Null
@@ -273,8 +282,16 @@ user\load\04007EF01F8AE000\60fps (unticking it isn't always enough).
 It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
+        $optionalText = @"
+
+ULTRAWIDE 3440x1440 (optional, OFF by default) - for 21:9 monitors: Emulation > Configure >
+Graphics, tick "Ultrawide 3440x1440 (21:9) for Fortune's Weave", then start the game and play
+fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred at 16:9
+(movies get black bars). Kompas9's patch (MIT, licenses\ultrawide-kompas9); only for game
+version 1.1.0 (build ID DB93B0125F485060).
+"@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4.2 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.5 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -304,10 +321,22 @@ NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tic
 "Use NVIDIA DLSS in place of the game's DLSS", then click "Download from NVIDIA" in the panel
 below it (NVIDIA's files aren't included). Takes effect when the game starts. It replaces the
 game's own lightweight DLSS with the full PC version: sharper, with less ghosting.
-$fpsText
+$fpsText$optionalText
 
 Changes from upstream:
 - Optional NVIDIA DLSS in place of the game's own DLSS (from Duck912's work in Eglantine).
+- The sky no longer turns black after opening the map: the texture cache threw away the game's
+  sky colour table while the map covered the screen, without keeping what the GPU had drawn.
+  Small images the GPU drew are now always kept.
+- No more recurring stutter from an experiment left on by mistake in v1.3.1 to v1.4.2 (held
+  CPU writes reached the GPU a frame late, so frames came out unevenly).
+- CPU Clocks (Boost/Overclock) is gone: it ran the game's clock 1.7-2x fast, so cutscene voices
+  dropped out and dialogue animations ended early.
+- Slightly smoother busy scenes: the GPU back thread answers most "has the GPU written here?"
+  checks from a page bitmap instead of searching a tree (same answers).
+- Much smaller logs: no line per frame, one line per unmapped memory read, so long sessions'
+  logs stay small enough to send.
+- Optional ultrawide 3440x1440 (21:9) setting, off by default: Kompas9's patch (MIT), built in.
 - Bath scenes no longer lose their background: a compute shader using a shared-memory
   compare-and-swap (ATOMS.CAS) is now translated instead of skipped.
 - Cutscenes keep up: AV1 videos are decoded several frames at once, so the busiest 1440p
@@ -315,9 +344,7 @@ Changes from upstream:
 - A user folder copied from another build uses its own saves and folders here, not the old
   build's (and Open Save Data Location opens the one next to this exe).
 - Smoother 60 FPS in busy scenes: texture-handle tables the game builds on the GPU and never
-  changes are no longer waited for once a frame, and CPU writes to GPU memory take the cache
-  lock far less often. In Dagsion's busiest section at 60 FPS, doubled frames went from about
-  45% to about 20%.
+  changes are no longer waited for once a frame.
 - Fewer shader-compile stutters: translated shaders are reused between pipelines that share
   them (Wael3rd, from PokeDinner).
 - Loose-file dumps use the game's real ID, so their saves sit with .nup saves.
