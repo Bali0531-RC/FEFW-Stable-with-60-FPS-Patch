@@ -255,14 +255,14 @@ cmake_language(DEFER CALL eden_render_isa_options)
         } else {
             Write-Warning 'portable-config not found: the package will start with default settings, and Fortune''s Weave needs the 12 GB memory layout.'
         }
-        # Optional mods (Kompas9's ultrawide patch): beside the exe, NOT in user\load, so nobody
-        # gets one by accident, including people who copy an older user folder over this one.
-        $optionalMods = Join-Path $root 'optional-mods'
-        $hasOptional = Test-Path $optionalMods
-        if ($hasOptional) {
-            Copy-Item -Path $optionalMods -Destination (Join-Path $outDir 'Optional mods') -Recurse
+        # Kompas9's ultrawide patch is built into the exe (setting fefw_ultrawide): its MIT notice.
+        $uwLicense = Join-Path $root 'licenses\ultrawide-kompas9'
+        if (Test-Path $uwLicense) {
+            $uwDest = Join-Path $outDir 'licenses\ultrawide-kompas9'
+            New-Item -ItemType Directory -Force -Path $uwDest | Out-Null
+            Copy-Item -Path (Join-Path $uwLicense '*') -Destination $uwDest
         } else {
-            Write-Warning 'optional-mods not found: the package will not include the ultrawide patch.'
+            Write-Warning 'licenses\ultrawide-kompas9 not found: the package will lack the ultrawide patch notice.'
         }
         if ($hasFpsMod) {
             $modDest = Join-Path $userDir 'load\04007EF01F8AE000'
@@ -282,13 +282,14 @@ user\load\04007EF01F8AE000\60fps (unticking it isn't always enough).
 It only works with the game version whose build ID starts DB93B0125F485060;
 other versions just ignore it.
 "@ } else { '' }
-        $optionalText = if ($hasOptional) { @"
+        $optionalText = @"
 
-ULTRAWIDE 3440x1440 (optional, OFF) - Kompas9's ultrawide patch is in the "Optional mods"
-folder. It is not installed: to use it on a 21:9 monitor, follow the README.txt in
-Optional mods\Ultrawide-3440x1440-v1.1 (copy that folder into user\load\04007EF01F8AE000
-and set Aspect Ratio to Stretch to Window).
-"@ } else { '' }
+ULTRAWIDE 3440x1440 (optional, OFF by default) - for 21:9 monitors: Emulation > Configure >
+Graphics, tick "Ultrawide 3440x1440 (21:9) for Fortune's Weave", then start the game and play
+fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred at 16:9
+(movies get black bars). Kompas9's patch (MIT, licenses\ultrawide-kompas9); only for game
+version 1.1.0 (build ID DB93B0125F485060).
+"@
         @"
 Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.4.3 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
@@ -328,7 +329,7 @@ Changes from upstream:
   checks from a page bitmap instead of searching a tree (same answers).
 - Much smaller logs: no line per frame, one line per unmapped memory read, so long sessions'
   logs stay small enough to send.
-- Optional ultrawide 3440x1440 patch by Kompas9 (MIT), in "Optional mods", not installed.
+- Optional ultrawide 3440x1440 (21:9) setting, off by default: Kompas9's patch (MIT), built in.
 - Bath scenes no longer lose their background: a compute shader using a shared-memory
   compare-and-swap (ATOMS.CAS) is now translated instead of skipped.
 - Cutscenes keep up: AV1 videos are decoded several frames at once, so the busiest 1440p
