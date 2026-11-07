@@ -8,6 +8,15 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 > **30 FPS is how Fortune's Weave runs on Switch 2**, and it's how this build runs by default: smoothly, everywhere.
 > **Fast PC?** A 60 FPS patch is included but **off by default**, because 60 FPS can feel choppy. On high-end CPUs it's fairly smooth at **1x resolution** (FSR upscales to your screen); higher resolutions roughly double the choppiness. To try it, right-click the game → *Properties → Add-Ons* and tick **60fps**. If it causes problems, untick it; if it still feels choppy, **delete** the folder `user\load\04007EF01F8AE000\60fps` (next to `Fortune's Eden.exe`), as unticking it isn't always enough.
 
+> [!CAUTION]
+> **Legal use only. This project does not support or allow piracy.**
+> - **Nothing of Nintendo's is included or linked:** no games, ROMs, keys (`prod.keys`, `title.keys`), firmware, system files or copyrighted game assets. This repository, its releases and its downloads contain only the emulator, its source code, settings, and a small community cheat code for 60 FPS.
+> - **You need your own legally obtained copy of the game, dumped yourself from your own console**, along with your own keys and firmware dumped from that same console. How to get these is not covered here, and no help is given for obtaining them any other way.
+> - **Issues, discussions or requests involving pirated games, shared keys or downloaded firmware will be closed** without help.
+> - This is a free, non-commercial project: no donations, paywalls or paid early access.
+> - Not affiliated with, endorsed by or sponsored by Nintendo or NVIDIA. *Fire Emblem: Fortune's Weave* and Nintendo Switch are trademarks of Nintendo; NVIDIA and DLSS are trademarks of NVIDIA. Names are used only to describe compatibility.
+> - Development and testing were done only with legally dumped copies of the game, keys and firmware from the maintainer's own hardware.
+
 > [!IMPORTANT]
 > **Your saves are stored next to `Fortune's Eden.exe`, not in the normal Eden location.**
 > This build is portable: saves live in `user\nand\user\save` **inside the folder you extracted**, *not* in `%APPDATA%\eden`. It won't see saves from another Eden install until you copy them in, and deleting or replacing this folder deletes its saves. See [Saves](#saves) below.
@@ -81,4 +90,4 @@ That gives `FEFW-Stable-60FPS-Portable` (with `Fortune's Eden.exe`) and a zip of
 
 ## Credits and licence
 
-Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader, AMD fix and NVIDIA DLSS support from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) (Duck912, arisqz), and shader reuse and shutdown fixes from PokeDinner (Wael3rd, kraibse, Takoroka). NVIDIA DLSS and Streamline are NVIDIA's; none of NVIDIA's files are included. Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with Nintendo. Please only use games dumped from hardware you own.
+Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader, AMD fix and NVIDIA DLSS support from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) (Duck912, arisqz), and shader reuse and shutdown fixes from PokeDinner (Wael3rd, kraibse, Takoroka). NVIDIA DLSS and Streamline are NVIDIA's; none of NVIDIA's files are included. Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with, endorsed by or sponsored by Nintendo or NVIDIA. For use only with games, keys and firmware legally dumped from your own console; see the legal notice at the top.
