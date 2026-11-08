@@ -353,8 +353,8 @@ $fpsText$optionalText
 New in v1.6.1:
 - Fixes 8 GB cards dropping to about 2 FPS for minutes when a scene loads many textures at
   once: the GPU texture conversion's temporary images now have a memory limit.
-- Fixes the button prompts at the screen edges ghosting while moving: the v1.6 exe was a
-  faulty build. Same code as v1.6, built clean.
+- UI smearing at the screen edges while moving comes from frame generation (NVIDIA Smooth
+  Motion or Lossless Scaling), not the emulator: turn it off for this program.
 - The resolution options show this game's real sizes: 1X is 1440p, 1.5X 4K, 2X 5K.
 
 New in v1.6:
