@@ -19,6 +19,7 @@
   - A shader that fails to build no longer crashes the driver; its draws are skipped.
   - A depth-buffer copy no longer loses the device on NVIDIA.
   - Two threads can no longer clear the same list of GPU-written memory at once.
+  - Stopping the game no longer crashes with *ASTC decoding* set to *CPU Asynchronously* (a texture still decoding wrote into freed memory).
 
 ## v1.5
 
