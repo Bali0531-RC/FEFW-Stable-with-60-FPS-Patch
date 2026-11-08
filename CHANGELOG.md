@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.1 (in progress)
+
+- **ASTC recompression defaults to BC3.** The game's textures are ASTC, which PC graphics cards can't use directly, so the emulator converts them. *Uncompressed* (the old default) stores them at about 4× the size of BC3, and on some cards that ran out of video memory when turning the camera in busy areas such as Dagsion (an RX 7700 XT dropped to about 5 FPS). BC3 looks almost the same. This is a default for new installs: if you copy your old `user` folder over, set it yourself in *Graphics → Advanced → ASTC recompression*.
+
 ## v1.5
 
 - **Fixed: the sky turning black after opening the map** (in Dagsion: blue in the menu, black after the map, sometimes staying black). The emulator's texture cache frees images that haven't been used for a few frames. Images the GPU drew into are normally kept or copied back to game memory first, but some (ones that overlap other images awkwardly) were freed with nothing kept. The game draws its sky colour table once and keeps reading it, so when the map covered the screen long enough for the table to be freed, the emulator rebuilt it from game memory, which never had it: black sky, clouds still fine. Small images the GPU drew (up to 4 MB; the sky table is one) are now always kept, even when video memory is nearly full; larger ones are still freed as before. In testing the sky stayed blue through every map visit (it went black on the first visit before), keeping at most about 160 MB more.
