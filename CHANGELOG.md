@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.1
+
+- **Fixed: UI at the edges of the screen ghosting while moving.** In v1.6, the button prompts along the bottom of the screen (Menu, Dash, Map) showed a faint, shifted second copy of their text whenever the camera moved. v1.6.1 has exactly the same code as v1.6: the v1.6 exe itself was faulty, because it was built on top of several earlier test builds. The same code built from a clean build folder doesn't do this. Everything new in v1.6 (textures re-compressed on the GPU, Auto picking BC3, the texture cleanup) is unchanged.
+
 ## v1.6
 
 - **Battle starts no longer freeze while textures convert: ASTC textures are now re-compressed on the GPU** (ported from Eglantine, Duck912). The game's textures are ASTC, which PC graphics cards can't use directly. Until now there were two choices: *Uncompressed*, converted on the GPU but needing so much video memory that only 20 GB cards could use it safely, or *BC3*, a quarter of the size but converted on the CPU, on the thread that prepares every frame, so the picture and sound froze for a moment whenever a battle loaded many textures at once. Now, with *ASTC decoding* on *GPU* (the default), the graphics card decodes each texture and re-compresses it to BC3 itself, off the CPU. In testing, a large battle on BC3 that used to freeze ran at 57-60 FPS throughout, using 7-11 GB of video memory where Uncompressed used 15-19 GB.
