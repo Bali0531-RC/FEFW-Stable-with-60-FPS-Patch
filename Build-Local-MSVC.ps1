@@ -353,6 +353,7 @@ $fpsText$optionalText
 New in v1.6.1:
 - Fixes the button prompts at the screen edges ghosting while moving: the v1.6 exe was a
   faulty build. Same code as v1.6, built clean.
+- The resolution options show this game's real sizes: 1X is 1440p, 1.5X 4K, 2X 5K.
 
 New in v1.6:
 - ASTC textures are re-compressed to BC3 on the GPU (from Eglantine, Duck912), so battle starts

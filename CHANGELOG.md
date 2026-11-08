@@ -3,6 +3,7 @@
 ## v1.6.1
 
 - **Fixed: UI at the edges of the screen ghosting while moving.** In v1.6, the button prompts along the bottom of the screen (Menu, Dash, Map) showed a faint, shifted second copy of their text whenever the camera moved. v1.6.1 has exactly the same code as v1.6: the v1.6 exe itself was faulty, because it was built on top of several earlier test builds. The same code built from a clean build folder doesn't do this. Everything new in v1.6 (textures re-compressed on the GPU, Auto picking BC3, the texture cleanup) is unchanged.
+- **The resolution options show this game's real sizes.** They still listed the original Switch 1 sizes (1X as 720p/1080p). Fortune's Weave on Switch 2 draws its 3D scene at 720p and upscales it with its own DLSS to 1440p, and the setting scales both, so the options now read 1X (1440p, native), 1.5X (2160p, 4K), 2X (2880p, 5K), 3X (4320p, 8K) and so on (docked mode).
 
 ## v1.6
 
