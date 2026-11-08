@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.2
+
+- **Fixes a crash with NVIDIA DLSS on** (ported from Eglantine, Duck912). A few minutes into some sessions, often at a scene change, the emulator closed with an error in `nvoglv64.dll` (NVIDIA's driver). Drawing DLSS's output into the game's image read its target framebuffer on the graphics driver's thread, after the texture cache could already have removed it, so the driver was asked to draw into a framebuffer that no longer existed. It now reads the framebuffer when the command is recorded. This was also in v1.5 and v1.5.1.
+
 ## v1.5.1
 
 - **Game updates: the right version, and loose updates** ([#11](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/11)). The game's main menu always showed v1.0.0 for a `.nup` or a loose dump, even with an update in it, because the emulator only knew the version of installed games. It now reports the update's version, also for a `.nup` that doesn't record one (it then reads the update's own control data, or recognises the 1.1.0 build). Loose dumps can now carry an update too: put it in an `updates\<number>\` folder (with its `exefs`, `romfs` and `control.nacp`) next to the dump's `exefs`/`romfs`, or next to a `base` folder holding the dump. The newest one runs, with its files laid over the base's. **Note:** the ultrawide option is made for game version 1.1.0 (code build `DB93B012…`); other versions have different code, so it doesn't apply to them. The 60 FPS patch is set up for 1.1.0 too and may also work on 1.0.0 (not confirmed yet). The log's `name=main` line shows which build is running.

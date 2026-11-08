@@ -312,7 +312,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.5.1 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.5.2 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -349,6 +349,11 @@ NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tic
 below it (NVIDIA's files aren't included). Takes effect when the game starts. It replaces the
 game's own lightweight DLSS with the full PC version: sharper, with less ghosting.
 $fpsText$optionalText
+
+New in v1.5.2:
+- Fixes a crash inside the NVIDIA driver (nvoglv64.dll) a few minutes into some sessions with
+  NVIDIA DLSS on: drawing DLSS's output could start with a framebuffer the texture cache had
+  just removed. From Eglantine (Duck912).
 
 New in v1.5.1:
 - Game updates: the main menu shows the update's version (1.1.0, not 1.0.0), also for .nup
