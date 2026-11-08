@@ -371,7 +371,8 @@ game's own lightweight DLSS with the full PC version: sharper, with less ghostin
 
 AMD FSR 4 (optional, AMD Radeon RX 7000/9000): Graphics, tick "Use AMD FSR 4 in place of the
 game's DLSS". Through fsr4-vk, a community Vulkan port of FSR 4.1.1 (not made or endorsed by
-AMD; amd_fidelityfx_upscaler_vk.dll, licences in licenses\fsr4-vk). It can't start on other cards.
+AMD; amd_fidelityfx_upscaler_vk.dll, licences in licenses\fsr4-vk). RX 6000 cards may run it too,
+more slowly (untested); it didn't start on an NVIDIA card in testing.
 AMD FSR 3.1 (optional, any card): tick "Use AMD FSR 3.1 in place of the game's DLSS". Also used
 when NVIDIA DLSS or FSR 4 can't start. The game's own DLSS (the default) looks better at this
 game's 2x upscale; FSR 3.1's sharpening follows the FSR Sharpness slider.
