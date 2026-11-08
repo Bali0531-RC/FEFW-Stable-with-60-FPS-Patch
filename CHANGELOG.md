@@ -9,6 +9,13 @@
 - **Laptops and 4-core CPUs: smoother sound.** This build splits the GPU work over two busy threads for extra speed. On CPUs with only 4 fast cores (many laptops have 4 fast and 4 slow ones) that second thread competed with the game's own threads, and battles' sound crackled or beeped even at 30 FPS ([#8](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/8)). It's now off automatically on CPUs with 4 or fewer fast cores; the log says which way it went. `EDEN_GPU_SPLIT=2` turns it back on, `EDEN_GPU_SPLIT=0` turns it off anywhere.
 - **Logs show frame pacing again, without growing back.** Every 10 seconds one line gives the FPS, the average and worst time between frames, and how many frames took over 50 ms and over 100 ms. So a log shows whether a PC keeps up, at about 360 lines an hour instead of one line per frame (v1.4.2's 27 MB logs).
 - **Logs record what NVIDIA DLSS is given whenever it changes**, not only at the start, to track down scenes where it misbehaves ([#5](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/5)).
+- **Fewer shader hitches during fades** (from Eglantine #544, measured on this game: one scene built 101 shaders instead of 925). When the game fades something in or out with its alpha test on, the cut-off value moved by less than one visible step each frame, and each value built a new shader. It's now rounded to the 256 steps the game's textures can actually show.
+- **Crash fixes from Eglantine:**
+  - The GPU no longer keeps old data after some memory copies.
+  - The window can be resized, fullscreened or alt-tabbed without the swapchain being destroyed while the GPU still uses it.
+  - A shader that fails to build no longer crashes the driver; its draws are skipped.
+  - A depth-buffer copy no longer loses the device on NVIDIA.
+  - Two threads can no longer clear the same list of GPU-written memory at once.
 
 ## v1.5
 
