@@ -312,7 +312,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.5 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.5.1 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -334,8 +334,14 @@ touch any other Eden install. To move it, move the whole folder. Deleting it del
 
 SETTINGS are already set up globally (Emulation > Configure), so they apply however the game
 is dumped or packed: the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous
-shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative (avoids
-long-session freezes), AMD FSR window filter at 0% sharpness and FXAA anti-aliasing.
+shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative (up to three
+quarters of the card's video memory), ASTC recompression Auto, AMD FSR window filter at 0%
+sharpness and FXAA anti-aliasing.
+
+ASTC RECOMPRESSION (Graphics > Advanced): Auto picks Uncompressed (smoothest) when the emulator
+may use about 15 GB of video memory (20 GB cards and up) below 1.5x resolution, and BC3
+otherwise. Don't choose Uncompressed yourself on a card with less than 20 GB: the game runs out
+of video memory and stutters or drops to single-digit FPS. The log says what Auto picked.
 Only controls need setting: Emulation > Configure > Controls.
 
 NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tick
@@ -343,6 +349,18 @@ NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tic
 below it (NVIDIA's files aren't included). Takes effect when the game starts. It replaces the
 game's own lightweight DLSS with the full PC version: sharper, with less ghosting.
 $fpsText$optionalText
+
+New in v1.5.1:
+- Game updates: the main menu shows the update's version (1.1.0, not 1.0.0), also for .nup
+  files that don't record one; loose dumps can carry an update in an updates\<number>\ folder.
+- ASTC recompression Auto (see above), and big cards may use three quarters of their video
+  memory instead of about 7 GB.
+- Laptops and 4-core CPUs: sound no longer stutters in battles (audio threads at top priority;
+  the GPU thread split turns itself off with 4 or fewer fast cores).
+- Threads wait properly on newer CPUs (from Eglantine); fewer shader hitches during fades;
+  crash fixes for window resizing, failed shaders, NVIDIA depth copies and stopping the game.
+- Cutscene video keeps up with the voices on slower PCs.
+- Logs show frame pacing every 10 s and video memory use every minute.
 
 Changes from upstream:
 - Optional NVIDIA DLSS in place of the game's own DLSS (from Duck912's work in Eglantine).
