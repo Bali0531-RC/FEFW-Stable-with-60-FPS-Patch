@@ -1,6 +1,6 @@
 # Fortune's Eden (FEFW Stable with 60 FPS Patch)
 
-**Current version: v1.6.1** — fixes 8 GB cards dropping to 2 FPS when a scene loads many textures and labels the resolution options with this game's real sizes (2X is 5K). v1.6: battle starts no longer freeze while textures convert: the GPU now re-compresses the game's textures itself, so every card gets the small, smooth BC3 textures (ASTC recompression Auto picks them), plus smoother play when video memory fills up. v1.5.2 fixed a crash in the NVIDIA driver with DLSS on. v1.5.1 brought smoother sound on laptops and 4-core CPUs, no more battle-start freezes from texture conversion on big cards (ASTC recompression now picks itself), big cards may use more of their video memory, the menu shows the game update's version, and crash fixes. v1.5 fixed the sky turning black after opening the map, a recurring stutter, and missing cutscene voices, and added an optional ultrawide setting (off by default). v1.4.2 fixed 3D scenes losing their background (bath scenes going black around the characters); v1.4.1 stopped cutscenes dropping to about 5 FPS and made a copied `user` folder use its own saves; v1.4 added optional **NVIDIA DLSS** and new default image settings (FSR at 0% sharpness with FXAA). See [CHANGELOG.md](CHANGELOG.md).
+**Current version: v1.6.2** — **HDR output**, optional **AMD FSR 3.1** (any card) and **AMD FSR 4** (RX 7000/9000), and a big fixes release from a full code review: crash and save fixes, sound clicks and 4-core stutter, fewer cleanup hitches on 8 GB cards, and new default image settings (Bilinear, no FXAA, vsync Mailbox). v1.6.1 fixed 8 GB cards dropping to 2 FPS when a scene loads many textures and labelled the resolution options with this game's real sizes (2X is 5K). v1.6: battle starts no longer freeze while textures convert: the GPU now re-compresses the game's textures itself, so every card gets the small, smooth BC3 textures (ASTC recompression Auto picks them), plus smoother play when video memory fills up. v1.5.2 fixed a crash in the NVIDIA driver with DLSS on. v1.5.1 brought smoother sound on laptops and 4-core CPUs, no more battle-start freezes from texture conversion on big cards (ASTC recompression now picks itself), big cards may use more of their video memory, the menu shows the game update's version, and crash fixes. v1.5 fixed the sky turning black after opening the map, a recurring stutter, and missing cutscene voices, and added an optional ultrawide setting (off by default). v1.4.2 fixed 3D scenes losing their background (bath scenes going black around the characters); v1.4.1 stopped cutscenes dropping to about 5 FPS and made a copied `user` folder use its own saves; v1.4 added optional **NVIDIA DLSS** and new default image settings (FSR at 0% sharpness with FXAA). See [CHANGELOG.md](CHANGELOG.md).
 
 A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire Emblem: Fortune's Weave*. It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12), which is based on it. Unzip it, point it at your game, and play. Nothing to install, and it won't touch any other Eden setup you have.
 
@@ -14,7 +14,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 > - **You need your own legally obtained copy of the game, dumped yourself from your own console**, along with your own keys and firmware dumped from that same console. How to get these is not covered here, and no help is given for obtaining them any other way.
 > - **Issues, discussions or requests involving pirated games, shared keys or downloaded firmware will be closed** without help.
 > - This is a free, non-commercial project: no donations, paywalls or paid early access.
-> - Not affiliated with, endorsed by or sponsored by Nintendo or NVIDIA. *Fire Emblem: Fortune's Weave* and Nintendo Switch are trademarks of Nintendo; NVIDIA and DLSS are trademarks of NVIDIA. Names are used only to describe compatibility.
+> - Not affiliated with, endorsed by or sponsored by Nintendo, NVIDIA or AMD. *Fire Emblem: Fortune's Weave* and Nintendo Switch are trademarks of Nintendo; NVIDIA and DLSS are trademarks of NVIDIA; AMD, FSR and FidelityFX are trademarks of AMD. Names are used only to describe compatibility.
 > - Development and testing were done only with legally dumped copies of the game, keys and firmware from the maintainer's own hardware.
 
 > [!IMPORTANT]
@@ -25,6 +25,8 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 
 ## What's different from upstream (xDarkWindx 1.12)
 
+- **HDR output (HDR10):** the game's own Switch 2 HDR mode, with its Brightness and UI Brightness options. Off by default; see [HDR](#hdr-optional).
+- **Optional AMD FSR 3.1 and AMD FSR 4** in place of the game's own DLSS: FSR 3.1 on any card, FSR 4 on AMD Radeon RX 7000/9000 (through the community port [fsr4-vk](https://github.com/Astyyyyy/fsr4-vk)). Off by default; see [Upscalers](#upscalers-optional).
 - **Optional NVIDIA DLSS:** on GeForce RTX cards, the game's own lightweight DLSS (the Switch 2's upscaler, which can leave ghosting around moving characters) can be replaced with the full PC version of NVIDIA DLSS. Off by default; see [NVIDIA DLSS](#nvidia-dlss-optional). Ported from Duck912's work in [Eglantine](https://github.com/Djihads80/Eglantine).
 - **Smoother 60 FPS in busy scenes:** the game builds some texture-handle tables on the GPU and reads them a few draws later. The emulator used to stop and wait for the GPU about once a frame to read them back, although they never change. It now uses the copy it has and checks it against the GPU's version afterwards, going back to waiting if they ever differ. CPU writes to GPU memory also take the cache lock far less often. In Dagsion's busiest section at 60 FPS (1x), doubled frames went from about 45% to about 20%.
 - **Fewer shader-compile stutters:** translated shaders are reused between graphics pipelines that share them, so new areas hitch less the first time (Wael3rd, from PokeDinner, an Eglantine fork).
@@ -34,7 +36,7 @@ A portable, ready-to-play Windows build of the Eden emulator fork made for *Fire
 - **AMD graphics fix:** shader registers that a game reads before writing are treated as zero, as NVIDIA hardware does, instead of leftover garbage, which on AMD GPUs can show as stray coloured patches. Ported from Eglantine (by arisqz).
 - **Shutdown and restart fixes:** no hang when stopping the game if its audio renderer outlives its manager (kraibse), and starting the game again in the same window no longer hangs or crashes (Takoroka), both from PokeDinner, an Eglantine fork. Clearer logs for missing keys and unsupported system calls, and an error-reporting crash fix (xDarkWindx).
 - **Start-up crash fix:** the emulator no longer closes on launch when Windows refuses to delete an empty save-profile folder, and never deletes a save folder it can't read.
-- **Settings ready for Fortune's Weave, all global:** the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative, AMD FSR window filter at 0% sharpness and FXAA anti-aliasing, set under *Emulation → Configure* so they apply however your game is dumped or packed. Only controls need setting up.
+- **Settings ready for Fortune's Weave, all global:** the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous shaders on, vsync Mailbox, 16x anisotropic filtering, VRAM Usage Mode Conservative, Bilinear window filter and anti-aliasing off, set under *Emulation → Configure* so they apply however your game is dumped or packed. Only controls need setting up.
 - **Fully portable:** settings, **saves** and shader cache all stay in the `user` folder next to `Fortune's Eden.exe` (see [Saves](#saves)).
 - **Runs on any PC:** built without CPU-specific instructions, with the Microsoft C++ runtime included.
 
@@ -66,7 +68,21 @@ For GeForce RTX cards. The game renders at a lower resolution and upscales with 
 2. In the panel below it, click **Download from NVIDIA** and accept NVIDIA's licences. NVIDIA's files aren't included in this download; they're fetched from NVIDIA's own Streamline release into `user\streamline` (if the NVIDIA app has already downloaded DLSS, only a 1 MB file is needed).
 3. Start the game. If DLSS can't run, the game's own DLSS is used as before.
 
-Recommended with it: *Window Adapting Filter* FSR at **0%** sharpness (or Bilinear) and **FXAA**, the defaults. Higher FSR sharpness on top of DLSS looks oversharpened.
+Recommended with it: *Window Adapting Filter* **Bilinear** and anti-aliasing **off**, the defaults. Pick the resolution so the output matches your screen (1.5X for 4K).
+
+## Upscalers (optional)
+
+The game upscales its 3D scene 2× with its own small DLSS network; that's the default, and it looks better than FSR 3.1 at this ratio. In *Emulation → Configure → Graphics* you can replace it with:
+
+- **NVIDIA DLSS** (GeForce RTX): the best picture by far. See above.
+- **AMD FSR 4** (Radeon RX 7000/9000): tick **Use AMD FSR 4 in place of the game's DLSS**. It runs through [fsr4-vk](https://github.com/Astyyyyy/fsr4-vk), a community Vulkan port of FSR 4.1.1, not made or endorsed by AMD; its provider `amd_fidelityfx_upscaler_vk.dll` is next to the exe. RX 9000 cards run the full model, RX 7000 cards an 8-bit version. It can't start on other cards. Only one of NVIDIA DLSS and FSR 4 can be ticked.
+- **AMD FSR 3.1** (any card): tick **Use AMD FSR 3.1 in place of the game's DLSS**. It's also used when NVIDIA DLSS or FSR 4 is ticked but can't start. Its sharpening follows the *FSR Sharpness* slider (25% by default). Edges are rougher in motion than with the game's own DLSS.
+
+Each takes effect when the game starts; the log says which one ran ("Game DLSS replaced by ...").
+
+## HDR (optional)
+
+Fortune's Weave has an HDR mode on Switch 2. To use it: turn on HDR in Windows (*Settings → System → Display → Use HDR*), tick **HDR output (HDR10)** in *Emulation → Configure → Graphics*, and start the game. Its *Brightness* and *UI Brightness* options then adjust the picture. The game checks for HDR once when it starts, so restart it after changing either setting.
 
 ## Troubleshooting
 
@@ -90,4 +106,4 @@ That gives `FEFW-Stable-60FPS-Portable` (with `Fortune's Eden.exe`) and a zip of
 
 ## Credits and licence
 
-Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader, AMD fix and NVIDIA DLSS support from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) (Duck912, arisqz), and shader reuse and shutdown fixes from PokeDinner (Wael3rd, kraibse, Takoroka). NVIDIA DLSS and Streamline are NVIDIA's; none of NVIDIA's files are included. Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with, endorsed by or sponsored by Nintendo or NVIDIA. For use only with games, keys and firmware legally dumped from your own console; see the legal notice at the top.
+Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader, AMD fix and NVIDIA DLSS support from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) (Duck912, arisqz), and shader reuse and shutdown fixes from PokeDinner (Wael3rd, kraibse, Takoroka). AMD FSR 3.1 is built from AMD's FidelityFX SDK (MIT) with the upscaler from Eglantine (Duck912); AMD FSR 4 runs through [fsr4-vk](https://github.com/Astyyyyy/fsr4-vk) (GPL-3.0; AMD's FSR 4 models and shaders keep their own licence, in `licenses\fsr4-vk`). AMD and FidelityFX are trademarks of AMD; neither project is made or endorsed by AMD. NVIDIA DLSS and Streamline are NVIDIA's; none of NVIDIA's files are included. Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with, endorsed by or sponsored by Nintendo or NVIDIA. For use only with games, keys and firmware legally dumped from your own console; see the legal notice at the top.

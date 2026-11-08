@@ -1,5 +1,51 @@
 # Changelog
 
+## v1.6.2
+
+A big fixes release: a full review of the emulator's code (about 120 findings) went into it, plus HDR and two new optional upscalers.
+
+- **New: HDR output (HDR10).** Fortune's Weave has its own HDR mode on Switch 2, and it now runs on PC: turn on Windows HDR, then tick *Emulation → Configure → Graphics → HDR output (HDR10)* and start the game. The game's *Brightness* and *UI Brightness* options then work. Off by default; without Windows HDR the picture stays SDR.
+- **New: optional AMD FSR 3.1 and AMD FSR 4** in place of the game's own DLSS (*Graphics*):
+  - **Use AMD FSR 3.1 in place of the game's DLSS** runs on any graphics card (AMD's FidelityFX SDK, MIT; the upscaler from Eglantine, Duck912). In testing the game's own DLSS looked better at this game's 2× upscale, so FSR 3.1 is off by default; it's there for anyone who prefers it. Its sharpening follows the FSR Sharpness slider.
+  - **Use AMD FSR 4 in place of the game's DLSS** is for AMD Radeon RX 7000/9000 cards, through [fsr4-vk](https://github.com/Astyyyyy/fsr4-vk), a community Vulkan port of FSR 4.1.1 (not made or endorsed by AMD; RX 9000 runs the full FP8 model, RX 7000 the INT8 one). Its provider, `amd_fidelityfx_upscaler_vk.dll`, is next to the exe. On other cards it can't start, and FSR 3.1 (when ticked) or the game's own DLSS runs instead.
+  - Order: FSR 4 or NVIDIA DLSS when ticked (only one of the two), then FSR 3.1 when ticked, else the game's own DLSS, the default. **On GeForce RTX cards, NVIDIA DLSS looks much better than either.**
+- **New default image settings** (new installs and reset settings; your own settings are kept): *Window Adapting Filter* **Bilinear** (was FSR), anti-aliasing **off** (was FXAA, which only softened the game DLSS's ghosting and blurred text), **vsync Mailbox** (was off: no tearing, little added latency; drivers without Mailbox fall back to normal vsync) and FSR sharpness **25%** (only FSR 3.1 and the FSR window filter use it).
+- **Crash fixes:**
+  - Service threads reading memory the GPU had cached wrote past a 6-entry per-core table (random heap corruption).
+  - The GPU's page-kind map was changed without its lock while the GPU thread read it.
+  - Textures kept alive for a queued download could be destroyed while the GPU still used them (device lost); they now wait the usual 8 frames, and are no longer written back into memory the game has released.
+  - A texture lookup could return a texture deleted earlier in the same pass.
+  - The graphics driver service's open-file table had no lock; its fence callbacks are now removed before it's destroyed (crash at stop).
+  - A stop that takes over 10 seconds no longer kills the emulation thread and reuses the half-stopped system (crash or hang on the next start): it asks to keep waiting or quit. The status bar no longer reads statistics while the game shuts down.
+  - Switching between two 8 GB-plus memory layouts no longer keeps the old memory block.
+- **Saves:**
+  - Old saves from loose-file dumps (title 0) are now copied across even when an empty save folder for the game already exists, which some boot paths create first; the copy goes into a temporary folder and is only moved into place once it's complete, and the old save is kept. (Renaming folders always failed before; fixed.)
+  - A `user` folder copied from another build, with a custom NAND folder set, now uses this build's own `user\nand` saves instead of the custom NAND.
+- **Sound:**
+  - Clicks at sound loops and where streamed sounds join: the ADPCM decoder read every sample with the wrong sign.
+  - Battle sound stutter on 4-core CPUs ([#8](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/8)): the thread that answers the game's audio calls ran at normal priority while holding the lock the top-priority mixer needs. It now runs at top priority, and 6 sound buffers are queued instead of 4 (10 ms more latency, more margin).
+  - A sound buffer could be played before its samples were written (garbage audio and growing latency, rarely).
+  - Master volume above 100% dipped at 101% and clipped badly at 200%; it's now a straight 2× gain at 200%.
+- **Graphics:**
+  - Alpha-tested edges (foliage, hair, fences) no longer lose or gain one level of transparency (v1.5.1's fade fix rounded the cut-off onto a step instead of between steps).
+  - Float atomic shaders reading through more than one buffer no longer fail to build (a missing effect; the bath scenes use them).
+  - Engine uploads and the software blitter now use the Switch 2's texture layout.
+  - A clear of one layer of a layered target no longer wipes every layer.
+  - Shader fixes: unsigned shifts by 32 or more give 0; folded bit-field inserts are masked; each nested loop gets its full safety budget; the AMD-only discard reordering no longer drops discards or moves them out of loops.
+  - AMD RX 5000/6000/7000/9000 cards keep min/max sampler filtering (it was switched off on every AMD card).
+  - Drawing an upscaler's output (or the game's texture draws) no longer leaves the next draw thinking its pipeline is still bound.
+  - A minimised window no longer spins the CPU.
+  - HDR's 10-bit picture is shown with the right format.
+- **Performance:**
+  - **8 GB cards:** the texture cleanup counted video memory still waiting to be freed as in use, so it cleaned up again every frame for several frames, about 6× more than needed; and every texture written back waited for the GPU separately (up to 40 waits, the 20–90 ms hitches). Both fixed: one wait per pass.
+  - About 1–3 ms less work per frame on the GPU thread: draws no longer copy their whole descriptor list.
+  - GPU texture conversion submits work every 8 textures instead of after each one.
+  - Shader builds: each block uses 4 KB instead of 12.5 KB, and the largest compute shaders sort their jumps much faster (smaller hitches).
+  - Cheats that only write data no longer pause every CPU core 12 times a second to flush compiled code.
+  - The sound mixer no longer clears 32 KB per voice every 5 ms.
+- **Other fixes:** cheat files load once (Windows found them under both letter cases, so toggle cheats cancelled out); a `.nup` whose first update has no version name no longer shows 1.0.0; ultrawide only stretches the picture when its patch actually applied; corrupt `.romfs`, `.nup` and keys files can no longer hang or crash the loader; a rumble dropped by the 15 ms filter is no longer recorded as sent; writes crossing a 2 KiB boundary no longer lose half their GPU tracking; after three cancelled GPU waits the next one no longer pauses every CPU core; cutscene frames are invalidated after being written, and a stopped video decoder hands back its unshown frames.
+- `EDEN_NVIDIA_VIDS=1` turns on dynamic vertex input on NVIDIA drivers 580.119.02 and newer (the old driver check was broken and always turned it off). Off by default, because it changes every pipeline and the shader cache would rebuild.
+
 ## v1.6.1
 
 - **Fixed: 8 GB graphics cards dropping to about 2 FPS for minutes** (reported on an RX 7600 at nightfall). To re-compress a texture on the GPU, v1.6 first decodes it into a temporary full-colour image four times the texture's size, which can't be freed until the GPU is done with it. When a scene loads many textures at once, these piled up: on that card, 757 MB in half a second, past what the driver allows, so textures spilled into system memory and the game crawled at 2 FPS for three minutes. The temporary images now share a limit of 1/64 of the card's memory (128 MB on an 8 GB card, at most 256 MB), and over it the GPU's earlier work is waited for and its images reused. The log notes the first 20 times this happens.

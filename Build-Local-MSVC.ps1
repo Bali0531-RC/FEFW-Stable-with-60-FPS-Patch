@@ -296,6 +296,15 @@ cmake_language(DEFER CALL eden_render_isa_options)
         } else {
             Write-Warning 'licenses\ultrawide-kompas9 not found: the package will lack the ultrawide patch notice.'
         }
+        # AMD FSR 3.1 (option amd_fsr3) is built from AMD's FidelityFX SDK shaders: its MIT notice.
+        $ffxLicense = Join-Path $sourceDir 'externals\FidelityFX-SDK\LICENSE.txt'
+        if (Test-Path $ffxLicense) {
+            $ffxDest = Join-Path $outDir 'licenses\amd-fidelityfx-sdk'
+            New-Item -ItemType Directory -Force -Path $ffxDest | Out-Null
+            Copy-Item -LiteralPath $ffxLicense -Destination $ffxDest
+        } else {
+            Write-Warning 'externals\FidelityFX-SDK\LICENSE.txt not found: the package will lack the FSR 3.1 notice.'
+        }
         if ($hasFpsMod) {
             $modDest = Join-Path $userDir 'load\04007EF01F8AE000'
             New-Item -ItemType Directory -Force -Path $modDest | Out-Null
@@ -323,7 +332,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.1 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.2 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -336,7 +345,7 @@ GETTING STARTED
 LEGAL USE ONLY. Piracy is not acceptable and is not supported in any way. No games, keys,
 firmware or other Nintendo files are included. Use your own legally obtained copy of the game, dumped from your own
 console, as loose files (exefs/romfs) or a single .nup file, with keys and firmware dumped
-from that same console. Not affiliated with, endorsed by or sponsored by Nintendo or NVIDIA.
+from that same console. Not affiliated with, endorsed by or sponsored by Nintendo, NVIDIA or AMD.
 SAVES ARE STORED HERE, next to Fortune's Eden.exe (user\nand), NOT in %APPDATA%\eden.
 Loose files and .nup now share the same saves. Saves made with loose files in older versions
 are copied across automatically the first time.
@@ -345,9 +354,9 @@ touch any other Eden install. To move it, move the whole folder. Deleting it del
 
 SETTINGS are already set up globally (Emulation > Configure), so they apply however the game
 is dumped or packed: the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous
-shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative (up to three
-quarters of the card's video memory), ASTC recompression Auto, AMD FSR window filter at 0%
-sharpness and FXAA anti-aliasing.
+shaders on, vsync Mailbox, 16x anisotropic filtering, VRAM Usage Mode Conservative (up to three
+quarters of the card's video memory), ASTC recompression Auto, Bilinear window filter and
+anti-aliasing off. Pick the resolution so the output matches your screen (1.5X for 4K).
 
 ASTC RECOMPRESSION (Graphics > Advanced): Auto picks BC3, which the graphics card now
 re-compresses itself: a quarter of the video memory of Uncompressed, without the freezes BC3
@@ -359,7 +368,26 @@ NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tic
 "Use NVIDIA DLSS in place of the game's DLSS", then click "Download from NVIDIA" in the panel
 below it (NVIDIA's files aren't included). Takes effect when the game starts. It replaces the
 game's own lightweight DLSS with the full PC version: sharper, with less ghosting.
+
+AMD FSR 4 (optional, AMD Radeon RX 7000/9000): Graphics, tick "Use AMD FSR 4 in place of the
+game's DLSS". Through fsr4-vk, a community Vulkan port of FSR 4.1.1 (not made or endorsed by
+AMD; amd_fidelityfx_upscaler_vk.dll, licences in licenses\fsr4-vk). It can't start on other cards.
+AMD FSR 3.1 (optional, any card): tick "Use AMD FSR 3.1 in place of the game's DLSS". Also used
+when NVIDIA DLSS or FSR 4 can't start. The game's own DLSS (the default) looks better at this
+game's 2x upscale; FSR 3.1's sharpening follows the FSR Sharpness slider.
+
+HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the
+game; its Brightness and UI Brightness options then work. Restart the game after changing it.
 $fpsText$optionalText
+
+New in v1.6.2:
+- HDR output (HDR10), and optional AMD FSR 3.1 and AMD FSR 4 in place of the game's DLSS.
+- Fixes from a full code review: crashes (memory corruption, GPU map and texture lifetime
+  races, crash or hang after a slow stop), old saves copied across reliably, sound clicks at
+  loops and battle stutter on 4-core CPUs, alpha-tested edges, missing bath-scene effects.
+- 8 GB cards: far fewer texture cleanup passes, and one GPU wait per pass instead of up to 40.
+- Less CPU work per frame, smaller shader-build hitches, cheats no longer pause every core.
+- New defaults: Bilinear filter, anti-aliasing off, vsync Mailbox, FSR sharpness 25%.
 
 New in v1.6.1:
 - Fixes 8 GB cards dropping to about 2 FPS for minutes when a scene loads many textures at
