@@ -208,10 +208,26 @@ cmake_language(DEFER CALL eden_render_isa_options)
         $cmakeArgs += "-DCMAKE_PROJECT_yuzu_INCLUDE:FILEPATH=$include"
     }
 
-    $code = Invoke-Logged 'cmake' $cmakeArgs
+    # CMake downloads checksums for its bundled packages from GitHub on every configure (and the
+    # build reruns configure when CMake files change). Those downloads fail now and then; retry
+    # a failed step up to 4 times when that is the reason, instead of failing the whole build.
+    function Invoke-LoggedRetry([string]$Exe, [string[]]$Arguments) {
+        for ($attempt = 1; ; $attempt++) {
+            $before = if (Test-Path $toolLog) { (Get-Content -LiteralPath $toolLog -Raw).Length } else { 0 }
+            $result = Invoke-Logged $Exe $Arguments
+            if (-not $result -or $attempt -ge 4) { return $result }
+            $text = Get-Content -LiteralPath $toolLog -Raw
+            $tail = if ($text.Length -gt $before) { $text.Substring($before) } else { $text }
+            if ($tail -notmatch 'Failed to download') { return $result }
+            Write-Warning "A GitHub download failed (attempt $attempt of 4); retrying in 20 seconds..."
+            Start-Sleep -Seconds 20
+        }
+    }
+
+    $code = Invoke-LoggedRetry 'cmake' $cmakeArgs
     if ($code) { throw "CMake configure failed ($code). See $toolLog" }
 
-    $code = Invoke-Logged 'cmake' @('--build', $buildDir, '--target', 'yuzu', '--parallel', "$Jobs")
+    $code = Invoke-LoggedRetry 'cmake' @('--build', $buildDir, '--target', 'yuzu', '--parallel', "$Jobs")
     if ($code) { throw "Build failed ($code). See $toolLog" }
 
     $exe = Join-Path $buildDir 'bin\eden.exe'
