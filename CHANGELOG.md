@@ -3,6 +3,8 @@
 ## v1.5.1 (in progress)
 
 - **ASTC recompression defaults to BC3.** The game's textures are ASTC, which PC graphics cards can't use directly, so the emulator converts them. *Uncompressed* (the old default) stores them at about 4× the size of BC3, and on some cards that ran out of video memory when turning the camera in busy areas such as Dagsion (an RX 7700 XT dropped to about 5 FPS). BC3 looks almost the same. This is a default for new installs: if you copy your old `user` folder over, set it yourself in *Graphics → Advanced → ASTC recompression*.
+- **Logs show frame pacing again, without growing back.** Every 10 seconds one line gives the FPS, the average and worst time between frames, and how many frames took over 50 ms and over 100 ms. So a log shows whether a PC keeps up, at about 360 lines an hour instead of one line per frame (v1.4.2's 27 MB logs).
+- **Logs record what NVIDIA DLSS is given whenever it changes**, not only at the start, to track down scenes where it misbehaves ([#5](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/5)).
 
 ## v1.5
 
