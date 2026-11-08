@@ -213,10 +213,11 @@ cmake_language(DEFER CALL eden_render_isa_options)
     # a failed step up to 4 times when that is the reason, instead of failing the whole build.
     function Invoke-LoggedRetry([string]$Exe, [string[]]$Arguments) {
         for ($attempt = 1; ; $attempt++) {
-            $before = if (Test-Path $toolLog) { (Get-Content -LiteralPath $toolLog -Raw).Length } else { 0 }
+            $before = 0
+            if (Test-Path $toolLog) { $before = "$(Get-Content -LiteralPath $toolLog -Raw)".Length }
             $result = Invoke-Logged $Exe $Arguments
             if (-not $result -or $attempt -ge 4) { return $result }
-            $text = Get-Content -LiteralPath $toolLog -Raw
+            $text = "$(Get-Content -LiteralPath $toolLog -Raw)"
             $tail = if ($text.Length -gt $before) { $text.Substring($before) } else { $text }
             if ($tail -notmatch 'Failed to download') { return $result }
             Write-Warning "A GitHub download failed (attempt $attempt of 4); retrying in 20 seconds..."
