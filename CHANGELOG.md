@@ -10,6 +10,7 @@
 - **Logs show frame pacing again, without growing back.** Every 10 seconds one line gives the FPS, the average and worst time between frames, and how many frames took over 50 ms and over 100 ms. So a log shows whether a PC keeps up, at about 360 lines an hour instead of one line per frame (v1.4.2's 27 MB logs).
 - **Logs record what NVIDIA DLSS is given whenever it changes**, not only at the start, to track down scenes where it misbehaves ([#5](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/5)).
 - **Fewer shader hitches during fades** (from Eglantine #544, measured on this game: one scene built 101 shaders instead of 925). When the game fades something in or out with its alpha test on, the cut-off value moved by less than one visible step each frame, and each value built a new shader. It's now rounded to the 256 steps the game's textures can actually show.
+- **Cutscene video keeps up with the voices** (adapted from Eglantine). The game shows one video frame for each frame it draws, so on a PC that runs a cutscene below the video's frame rate, the picture fell further and further behind the sound. Frames the sound has already passed are now skipped, so the picture catches up. Nothing changes on a PC that keeps up. `EDEN_VIDEO_PACE=0` turns it off.
 - **Crash fixes from Eglantine:**
   - The GPU no longer keeps old data after some memory copies.
   - The window can be resized, fullscreened or alt-tabbed without the swapchain being destroyed while the GPU still uses it.
