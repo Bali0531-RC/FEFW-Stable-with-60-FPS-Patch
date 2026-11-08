@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.6
+
+- **Battle starts no longer freeze while textures convert: ASTC textures are now re-compressed on the GPU** (ported from Eglantine, Duck912). The game's textures are ASTC, which PC graphics cards can't use directly. Until now there were two choices: *Uncompressed*, converted on the GPU but needing so much video memory that only 20 GB cards could use it safely, or *BC3*, a quarter of the size but converted on the CPU, on the thread that prepares every frame, so the picture and sound froze for a moment whenever a battle loaded many textures at once. Now, with *ASTC decoding* on *GPU* (the default), the graphics card decodes each texture and re-compresses it to BC3 itself, off the CPU. In testing, a large battle on BC3 that used to freeze ran at 57-60 FPS throughout, using 7-11 GB of video memory where Uncompressed used 15-19 GB.
+- **ASTC recompression Auto now always picks BC3** when the GPU re-compresses (Vulkan with *ASTC decoding* on *GPU*). The 20 GB rule is gone, so 8-16 GB cards get the same smooth result as big ones. With the CPU decoding modes or OpenGL, Auto keeps the v1.5.1 rule. *Uncompressed* is still there for anyone who wants the best image and has the video memory; *BC1* and *BC3* chosen by hand are re-compressed on the GPU too. The log says what Auto picked and when the first texture is re-compressed on the GPU. `EDEN_GPU_BCN_TRANSCODE=0` goes back to re-compressing on the CPU, for comparisons.
+- **Smoother play when video memory fills up.** ASTC textures are slow to convert, so the texture cache kept them until memory was almost full and then had to throw many away at once, which stuttered. Once memory use passes the expected level, ASTC textures that haven't been used for 30 seconds are now freed early instead. In testing with video memory capped at 7 GB, a scene that dropped to about 35 FPS ran at 55-60.
+- Includes v1.5.2's fix for the NVIDIA DLSS crash.
+
 ## v1.5.2
 
 - **Fixes a crash with NVIDIA DLSS on** (ported from Eglantine, Duck912). A few minutes into some sessions, often at a scene change, the emulator closed with an error in `nvoglv64.dll` (NVIDIA's driver). Drawing DLSS's output into the game's image read its target framebuffer on the graphics driver's thread, after the texture cache could already have removed it, so the driver was asked to draw into a framebuffer that no longer existed. It now reads the framebuffer when the command is recorded. This was also in v1.5 and v1.5.1.

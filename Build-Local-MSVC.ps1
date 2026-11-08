@@ -312,7 +312,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.5.2 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -338,10 +338,10 @@ shaders on, vsync off, 16x anisotropic filtering, VRAM Usage Mode Conservative (
 quarters of the card's video memory), ASTC recompression Auto, AMD FSR window filter at 0%
 sharpness and FXAA anti-aliasing.
 
-ASTC RECOMPRESSION (Graphics > Advanced): Auto picks Uncompressed (smoothest) when the emulator
-may use about 15 GB of video memory (20 GB cards and up) below 1.5x resolution, and BC3
-otherwise. Don't choose Uncompressed yourself on a card with less than 20 GB: the game runs out
-of video memory and stutters or drops to single-digit FPS. The log says what Auto picked.
+ASTC RECOMPRESSION (Graphics > Advanced): Auto picks BC3, which the graphics card now
+re-compresses itself: a quarter of the video memory of Uncompressed, without the freezes BC3
+used to cause. Uncompressed needs a lot of video memory: on a card with less than 20 GB the game
+can run out and stutter or drop to single-digit FPS. The log says what Auto picked.
 Only controls need setting: Emulation > Configure > Controls.
 
 NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tick
@@ -349,6 +349,11 @@ NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tic
 below it (NVIDIA's files aren't included). Takes effect when the game starts. It replaces the
 game's own lightweight DLSS with the full PC version: sharper, with less ghosting.
 $fpsText$optionalText
+
+New in v1.6:
+- ASTC textures are re-compressed to BC3 on the GPU (from Eglantine, Duck912), so battle starts
+  no longer freeze while textures convert, and Auto picks BC3 on every card (about half the video memory).
+- Smoother play when video memory fills up: ASTC textures unused for 30 s are freed early.
 
 New in v1.5.2:
 - Fixes a crash inside the NVIDIA driver (nvoglv64.dll) a few minutes into some sessions with
