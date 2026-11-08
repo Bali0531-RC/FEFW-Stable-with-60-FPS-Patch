@@ -192,8 +192,12 @@ cmake_language(DEFER CALL eden_render_isa_options)
 '@ | Set-Content -LiteralPath $include -Encoding ASCII
     }
 
+    # Bundled packages (Qt, OpenSSL, SDL3, FFmpeg...) are kept in cpm-cache next to this script,
+    # not inside the source folder, so extracting a new source zip doesn't download them again.
+    $cpmCache = Join-Path $root 'cpm-cache'
     $cmakeArgs = @('-S', $sourceDir, '-B', $buildDir, '-G', 'Ninja',
-                   '-DCMAKE_EXE_LINKER_FLAGS:STRING=/machine:x64')
+                   '-DCMAKE_EXE_LINKER_FLAGS:STRING=/machine:x64',
+                   "-DCPM_SOURCE_CACHE:PATH=$cpmCache")
     foreach ($line in Get-Content -LiteralPath (Join-Path $root 'cmake-options.txt')) {
         $entry = $line.Trim()
         if ($entry -notmatch '^([A-Za-z0-9_]+):[A-Za-z0-9_]+=') { continue }
