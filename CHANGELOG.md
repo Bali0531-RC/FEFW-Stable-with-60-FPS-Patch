@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.6.6
+
+- **AMD FSR 4 now really starts on Radeon cards.** v1.6.4 and v1.6.5 still fell back to FSR 3.1 ("FidelityFX error 1", seen on an RX 7700 XT). AMD's FSR 4.1.2 library (FSR SDK 2.4) requires the app to say which API version it was built for, and takes the Vulkan device under a newer descriptor type; the emulator now does both, as AMD documents (and still tries the older way if that fails). Confirmed working on an RX 7700 XT. No particular AMD driver version is needed.
+- **The status bar names the upscaler's mode:** *NVIDIA DLSS - DLAA*, *AMD FSR 3.1 - Balanced*, *AMD FSR 4 - Quality* and so on, instead of the scene's scale. *Scale* now always shows the picture's scale (1x with the quality modes).
+- **Upscaler quality settings explain themselves:** above 1X resolution, a note under the list says the modes only work at 1X; with the game's own DLSS chosen, the list is greyed out, with a note that it always runs at Performance.
+
 ## v1.6.5
 
 - **New: Upscaler quality.** *Emulation → Configure → Graphics → Upscaler quality* chooses how big the game's 3D scene is drawn before the upscaler brings it to the full picture. Fortune's Weave itself always draws at 720p and upscales to 1440p (Performance); the emulator can now draw the scene bigger while the menus, text and the rest of the picture stay at 1440p:
@@ -13,7 +19,7 @@
   | Performance | 1280×720 (the game's own) | Performance |
 
   Native is the sharpest and the heaviest: the upscaler only smooths edges. Each step up costs GPU time (Balanced draws about 56% more scene pixels than Performance), so on a laptop or an older card Performance may still be the better choice. It works with AMD FSR 3.1, NVIDIA DLSS and AMD FSR 4 at the 1X resolution (the default). At other resolutions, and with the game's own DLSS, it stays at Performance for now. Takes effect when a game starts; the status bar shows the scene's scale (e.g. *Scale: 1x, scene 1.25x*).
-- **AMD FSR 4: the log now says why it can't start.** On some Radeon cards AMD's FSR 4 library still refuses to start ("FidelityFX error 1") and FSR 3.1 runs instead. AMD's own message is now written to the log. If FSR 4 falls back to FSR 3.1 for you, update to the latest AMD Adrenalin driver first; if it still falls back, please post your log.
+- **AMD FSR 4: the log now says why it can't start.** On some Radeon cards AMD's FSR 4 library still refused to start ("FidelityFX error 1") and FSR 3.1 ran instead; AMD's own messages are now written to the log. (Fixed in v1.6.6; a driver update didn't help.)
 - This build reuses v1.6.3's PGO profile, as v1.6.4 did.
 
 ## v1.6.4
