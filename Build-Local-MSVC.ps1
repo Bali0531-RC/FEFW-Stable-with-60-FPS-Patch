@@ -401,7 +401,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.4 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.5 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -444,9 +444,21 @@ Upscaler: Emulation > Configure > Graphics > Upscaler. Takes effect when the gam
   run the full model, RX 7000 and RX 6000 cards an INT8 model. It needs an AMD card.
 NVIDIA DLSS and FSR 4 fall back to FSR 3.1 when they can't start.
 
+Upscaler quality (Graphics): how big the 3D scene is drawn before it's upscaled to 1440p.
+Native (DLAA with NVIDIA DLSS) is the sharpest and heaviest; Ultra Quality, Quality and
+Balanced (the default) are in between; Performance is the game's own 720p and the lightest.
+Menus and text always stay at full size. Works at 1X resolution with FSR 3.1, NVIDIA DLSS or
+FSR 4; on a laptop or older card, Performance may run better.
+
 HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the
 game; its Brightness and UI Brightness options then work. Restart the game after changing it.
 $fpsText$optionalText
+
+New in v1.6.5:
+- Upscaler quality (Graphics): Native, Ultra Quality, Quality, Balanced (the new default) or
+  Performance. The 3D scene can now be drawn bigger than the game's own 720p while the menus
+  and text stay at 1440p.
+- AMD FSR 4: the log now says why it can't start, when it falls back to FSR 3.1.
 
 New in v1.6.4:
 - Busy scenes run faster: each draw is prepared about 40% faster where the game draws a lot
