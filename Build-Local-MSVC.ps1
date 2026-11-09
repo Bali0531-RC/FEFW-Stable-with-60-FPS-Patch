@@ -316,14 +316,25 @@ cmake_language(DEFER CALL eden_render_isa_options)
         # GPL: ship the exact source alongside the binary.
         $srcZip = if ($Version -eq '1.12') { Join-Path $root 'eden-fefw-1.12-local.zip' } else { $null }
         if ($srcZip -and (Test-Path $srcZip)) { Copy-Item -LiteralPath $srcZip -Destination (Join-Path $outDir 'source.zip') }
-        # Optional AMD FSR 4: fsr4-vk's Vulkan provider (GPL-3.0, its source is in source.zip under
-        # externals\fsr4-vk) and its licences, from the fsr4 folder next to this script.
+        # Optional AMD FSR 4: AMD's signed FSR 4.1.2 Vulkan upscaler library (FSR SDK 2.4), from the
+        # fsr4 folder next to this script. It is AMD's binary, under the SDK's licence (the same
+        # MIT licence as licenses\amd-fidelityfx-sdk); only an AMD-signed copy is packaged.
         $fsr4Dll = Join-Path $root 'fsr4\amd_fidelityfx_upscaler_vk.dll'
         if (Test-Path $fsr4Dll) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $fsr4Dll
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Advanced Micro Devices') {
+                throw "fsr4\amd_fidelityfx_upscaler_vk.dll is not validly signed by AMD ($($signature.Status)); not packaging it."
+            }
             Copy-Item -LiteralPath $fsr4Dll -Destination $outDir
-            $fsr4Licenses = Join-Path $outDir 'licenses\fsr4-vk'
-            New-Item -ItemType Directory -Force -Path $fsr4Licenses | Out-Null
-            Copy-Item -Path (Join-Path $root 'fsr4\licenses\*') -Destination $fsr4Licenses -Recurse
+            $fsr4Notice = Join-Path $outDir 'licenses\amd-fsr4'
+            New-Item -ItemType Directory -Force -Path $fsr4Notice | Out-Null
+            $fsr4Version = (Get-Item -LiteralPath $fsr4Dll).VersionInfo.FileVersion
+            @(
+                'amd_fidelityfx_upscaler_vk.dll: AMD FidelityFX (Vulkan) Upscaler Library'
+                "Version $fsr4Version, from AMD's FSR SDK 2.4 (FSR Upscaling 4.1.2), signed by Advanced Micro Devices."
+                'Copyright (C) Advanced Micro Devices, Inc. Redistributed unmodified under the AMD FidelityFX SDK'
+                'licence (MIT); see ..\amd-fidelityfx-sdk\LICENSE.txt. https://gpuopen.com/fidelityfx-sdk/'
+            ) | Set-Content -LiteralPath (Join-Path $fsr4Notice 'NOTICE.txt') -Encoding ASCII
         } else {
             Write-Warning 'fsr4\amd_fidelityfx_upscaler_vk.dll not found: the package has no AMD FSR 4.'
         }
@@ -428,9 +439,9 @@ Upscaler: Emulation > Configure > Graphics > Upscaler. Takes effect when the gam
 - Game's own DLSS: the game's own small network, run as compute passes. Some prefer its look.
 - NVIDIA DLSS (GeForce RTX): the best picture by far. Choose it, then click "Download from
   NVIDIA" in the panel below the list (NVIDIA's files aren't included).
-- AMD FSR 4 (AMD Radeon RX 7000/9000): through fsr4-vk, a community Vulkan port of FSR 4.1.1
-  (not made or endorsed by AMD; amd_fidelityfx_upscaler_vk.dll, licences in licenses\fsr4-vk).
-  RX 6000 cards may run it too, more slowly (untested); it didn't start on an NVIDIA card.
+- AMD FSR 4 (AMD Radeon RX 6000/7000/9000): AMD's own FSR 4.1.2 Vulkan library from the FSR SDK
+  2.4 (amd_fidelityfx_upscaler_vk.dll, signed by AMD; notice in licenses\amd-fsr4). RX 9000 cards
+  run the full model, RX 7000 and RX 6000 cards an INT8 model. It needs an AMD card.
 NVIDIA DLSS and FSR 4 fall back to FSR 3.1 when they can't start.
 
 HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the

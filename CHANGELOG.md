@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.6.4 (in progress)
+
+- **AMD FSR 4 now starts on AMD cards.** The emulator's workaround for broken float16 maths in recent AMD drivers (and on NVIDIA RTX 30-series and newer, and Intel) switched float16 off for the whole device, which FSR 4's networks need, so it always fell back to FSR 3.1 (seen on an RX 7700 XT). Float16 now stays available to FSR 4 while the emulator's own shaders still avoid it.
+- **Corrected: the FSR 4 library is AMD's own.** `amd_fidelityfx_upscaler_vk.dll` in v1.6.2 and v1.6.3 was AMD's signed FSR 4.1.2 Vulkan library from the FSR SDK 2.4, not the fsr4-vk community port the notes named. The notes and licences now say so (`licenses\amd-fsr4`), and the build only packages an AMD-signed copy. It supports Radeon RX 6000, 7000 and 9000.
+- **Automatic updates:** on start, Fortune's Eden checks GitHub for a newer release and asks whether to update. Update Now downloads it, checks it against GitHub's SHA-256, then closes, installs and restarts. Saves, settings, keys and mods are never touched. Turn it off with *Check for updates* in the settings, or choose *Skip This Version*.
+- **Faster draw setup in busy scenes:** the feedback-loop check per draw costs about 40% less (it only looks for depth feedback, through a per-bank image list).
+
 ## v1.6.3
 
 - **Speed back to v1.6.1 levels: the v1.6.2 download was built without profile-guided optimisation (PGO).** Every release since v1.3 was a PGO build, with whole-program optimisation; v1.6.2 was a plain build by mistake, so the emulator's CPU-side code ran noticeably slower (typically 10–20% for an emulator). That showed most in CPU-limited moments: busy battles, turning around in Dagsion, ultrawide, 60 FPS and laptops. v1.6.3 is a PGO build again, trained on v1.6.3's own code.
