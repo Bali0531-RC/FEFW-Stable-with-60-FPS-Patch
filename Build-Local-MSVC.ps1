@@ -70,7 +70,7 @@ function Add-TestRunner([string]$BuildDir) {
     if (Test-Path $TestKeys) {
         Copy-Item -LiteralPath $TestKeys -Destination (Join-Path $BuildDir 'user') -Recurse -Force
     } else {
-        Write-Warning "No keys at $TestKeys: copy your keys into $BuildDir\user\keys before running it."
+        Write-Warning "No keys at ${TestKeys}: copy your keys into $BuildDir\user\keys before running it."
     }
     $exeName = Get-ChildItem -LiteralPath $BuildDir -Filter '*.exe' -File |
                Where-Object { $_.Name -like "Fortune*" -or $_.Name -eq 'eden.exe' } | Select-Object -First 1
