@@ -401,7 +401,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.3 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.4 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -447,6 +447,14 @@ NVIDIA DLSS and FSR 4 fall back to FSR 3.1 when they can't start.
 HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the
 game; its Brightness and UI Brightness options then work. Restart the game after changing it.
 $fpsText$optionalText
+
+New in v1.6.4:
+- Busy scenes run faster: each draw is prepared about 40% faster where the game draws a lot
+  (the Saramis hub: 53-55 FPS before, a steady 60 with the 60 FPS mod on the test PC).
+- Automatic updates: on start it checks GitHub for a newer version and asks first. Updating
+  downloads it, checks it against GitHub's checksum, then restarts into the new version.
+  Saves, settings, keys and mods are never touched. (Settings: "Check for updates".)
+- AMD FSR 4 now starts on AMD Radeon RX 6000/7000/9000 cards (it fell back to FSR 3.1 before).
 
 New in v1.6.3:
 - A PGO build again: v1.6.2's download was built without it and ran slower on the CPU side.

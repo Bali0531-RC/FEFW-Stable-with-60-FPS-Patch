@@ -1,11 +1,15 @@
 # Changelog
 
-## v1.6.4 (in progress)
+## v1.6.4
 
+- **Busy scenes run faster: each draw is prepared about 40% faster where the game draws a lot** ([#18](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/18), [#21](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/21), [#28](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/28)). Measured standing still in the Saramis hub (war arc), with the per-draw timing statistics: 8.9 µs per draw in v1.6.3, 5.3 µs now; the thread that prepares draws went from 89% busy to 68%, and the hub from 53–55 FPS to a steady 60 with the 60 FPS mod on a Ryzen 7 9800X3D. Slower CPUs that dropped to 15 or 25 FPS there should gain the most.
+  - The game's large texture arrays (about 2,800 entries a draw) are decoded once and shared by every render pipeline instead of each pipeline rebuilding its own copy: rebuilds went from about 9,000 a second to about 560, and 99% of draws now reuse their texture descriptors as they are.
+  - The per-draw check for a draw sampling its own depth target only does that work when a depth target is attached, through a per-texture-bank list, instead of going over every bound texture on every draw.
+- **Automatic updates.** On start, Fortune's Eden checks GitHub for a newer release and asks whether to update (*Update Now*, *What's New*, *Skip This Version* or *Later*; during a game it waits until you stop). Update Now downloads the new version with a progress bar, checks it against the SHA-256 checksum GitHub lists (no checksum, no install), then closes, installs and restarts into the new version. The `user` folder (saves, settings, keys, mods, shader cache) is never touched. Turn it off with *Check for updates* in the settings. **From v1.6.3 or older, download v1.6.4 by hand once**; later versions arrive through the updater.
 - **AMD FSR 4 now starts on AMD cards.** The emulator's workaround for broken float16 maths in recent AMD drivers (and on NVIDIA RTX 30-series and newer, and Intel) switched float16 off for the whole device, which FSR 4's networks need, so it always fell back to FSR 3.1 (seen on an RX 7700 XT). Float16 now stays available to FSR 4 while the emulator's own shaders still avoid it.
 - **Corrected: the FSR 4 library is AMD's own.** `amd_fidelityfx_upscaler_vk.dll` in v1.6.2 and v1.6.3 was AMD's signed FSR 4.1.2 Vulkan library from the FSR SDK 2.4, not the fsr4-vk community port the notes named. The notes and licences now say so (`licenses\amd-fsr4`), and the build only packages an AMD-signed copy. It supports Radeon RX 6000, 7000 and 9000.
-- **Automatic updates:** on start, Fortune's Eden checks GitHub for a newer release and asks whether to update. Update Now downloads it, checks it against GitHub's SHA-256, then closes, installs and restarts. Saves, settings, keys and mods are never touched. Turn it off with *Check for updates* in the settings, or choose *Skip This Version*.
-- **Faster draw setup in busy scenes:** the feedback-loop check per draw costs about 40% less (it only looks for depth feedback, through a per-bank image list).
+- The timing statistics (`EDEN_BACK_THREAD_STATS=1`) split out texture-table builds, render-target updates and the feedback-loop check; the texture-table statistics (`EDEN_TEXTURE_TABLE_STATS=1`) show how many changed arrays came from another pipeline's decode.
+- This build reuses v1.6.3's PGO profile: code unchanged since v1.6.3 keeps its profile-guided optimisation; the reworked draw setup is optimised without it.
 
 ## v1.6.3
 
