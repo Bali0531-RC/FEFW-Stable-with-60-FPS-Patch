@@ -28,6 +28,11 @@ param(
     [switch]$Clean
 )
 if ($Pgo -in 'Train', 'Use' -and -not $Portable) { throw '-Pgo Train/Use are for the portable build: add -Portable.' }
+if ($Portable -and $Pgo -notin 'Train', 'Use') {
+    # Releases are PGO builds (with whole-program optimisation): a plain portable build is about
+    # 10-20% slower on the CPU side. v1.6.2 shipped like this by mistake.
+    Write-Warning 'Portable build WITHOUT PGO: fine for testing, but releases should use -Pgo Train, then -Pgo Use.'
+}
 if ($Portable) { $RenderIsa = 'None'; if ($Pgo -notin 'Train', 'Use') { $Pgo = 'Off' } }
 
 $ErrorActionPreference = 'Stop'
@@ -332,7 +337,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.2 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.3 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -380,6 +385,10 @@ game's 2x upscale; FSR 3.1's sharpening follows the FSR Sharpness slider.
 HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the
 game; its Brightness and UI Brightness options then work. Restart the game after changing it.
 $fpsText$optionalText
+
+New in v1.6.3:
+- A PGO build again: v1.6.2's download was built without it and ran slower on the CPU side.
+- Video memory cleanup starts earlier on big cards, so long sessions stay well below the limit.
 
 New in v1.6.2:
 - HDR output (HDR10), and optional AMD FSR 3.1 and AMD FSR 4 in place of the game's DLSS.

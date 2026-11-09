@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.6.3
+
+- **Speed back to v1.6.1 levels: the v1.6.2 download was built without profile-guided optimisation (PGO).** Every release since v1.3 was a PGO build, with whole-program optimisation; v1.6.2 was a plain build by mistake, so the emulator's CPU-side code ran noticeably slower (typically 10–20% for an emulator). That showed most in CPU-limited moments: busy battles, turning around in Dagsion, ultrawide, 60 FPS and laptops. v1.6.3 is a PGO build again, trained on v1.6.3's own code.
+- **Video memory: cleanup starts earlier on big cards.** Long sessions could creep towards the limit, where the driver and other programs push video memory over and performance drops. Faster cleanup now starts at 70% of the limit and hard cleanup at 85%, instead of 2.4 GB and 0.8 GB below it. A 24 GB card now settles around 12–15 GB instead of 15–17 GB; a 16 GB card around 8.4–10.2 GB; 8 GB cards are almost unchanged. v1.6.2's estimate of memory about to be freed now counts at most 1 GB, so it can't hold cleanup back.
+- Build script: warns when a portable build is made without PGO.
+
 ## v1.6.2
 
 A big fixes release: a full review of the emulator's code (about 120 findings) went into it, plus HDR and two new optional upscalers.
