@@ -78,8 +78,9 @@ function Add-TestRunner([string]$BuildDir) {
         '@echo off'
         'cd /d "%~dp0"'
         'set EDEN_BACK_THREAD_STATS=1'
+        'set EDEN_TEXTURE_TABLE_STATS=1'
         "start `"`" `"$($exeName.Name)`""
-    ) | Set-Content -LiteralPath (Join-Path $BuildDir 'Start with timing stats.bat') -Encoding ASCII
+    ) | Set-Content -LiteralPath (Join-Path $BuildDir 'Start with full stats.bat') -Encoding ASCII
 }
 $pgoDir    = Join-Path $root 'pgo-crowd-20261104'
 if ($Version -eq '1.12') {
