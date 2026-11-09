@@ -25,7 +25,8 @@ param(
     [int]$Jobs = [Environment]::ProcessorCount,
     [switch]$Symbols,                       # with -Pgo Train/Use: debugging symbols (eden.pdb) for
                                             # profiling, built in a separate folder; same code
-    [switch]$Clean
+    [switch]$Clean,
+    [string]$TestSave = 'D:\save'          # test save copied into test builds (never into -Pgo Use)
 )
 if ($Pgo -in 'Train', 'Use' -and -not $Portable) { throw '-Pgo Train/Use are for the portable build: add -Portable.' }
 if ($Portable -and $Pgo -notin 'Train', 'Use') {
@@ -37,6 +38,28 @@ if ($Portable) { $RenderIsa = 'None'; if ($Pgo -notin 'Train', 'Use') { $Pgo = '
 
 $ErrorActionPreference = 'Stop'
 $root      = $PSScriptRoot
+
+# Copies the standard test save into a test build's portable user folder: the save tree (its
+# 0000000000000000 folder) into user\nand\user\save, and, if the test save has one, profiles.dat
+# into the profile store, so the save's profile is a real one there (no "orphaned profile" warning).
+# Runs after any zip is made, so packages never contain it.
+function Add-TestSave([string]$BuildDir) {
+    $saveRoot = Join-Path $TestSave '0000000000000000'
+    if (-not (Test-Path $saveRoot)) { Write-Warning "No test save at $saveRoot; the test build starts without one."; return }
+    $nand = Join-Path $BuildDir 'user\nand'
+    $saveDest = Join-Path $nand 'user\save'
+    New-Item -ItemType Directory -Force -Path $saveDest | Out-Null
+    Copy-Item -LiteralPath $saveRoot -Destination $saveDest -Recurse -Force
+    $profiles = Join-Path $TestSave 'profiles.dat'
+    if (Test-Path $profiles) {
+        $avatars = Join-Path $nand 'system\save\8000000000000010\su\avators'
+        New-Item -ItemType Directory -Force -Path $avatars | Out-Null
+        Copy-Item -LiteralPath $profiles -Destination $avatars -Force
+        Write-Host "Test save copied in from $TestSave (with its profile)." -ForegroundColor Green
+    } else {
+        Write-Warning "Test save copied in from $TestSave, but $profiles is missing: Eden will make a new profile and report the save as orphaned."
+    }
+}
 $pgoDir    = Join-Path $root 'pgo-crowd-20261104'
 if ($Version -eq '1.12') {
     $sourceDir = Join-Path $root 'eden-fefw-1.12'
@@ -473,10 +496,11 @@ Built with MSVC $clVersion on $(Get-Date -Format 'yyyy-MM-dd')$(if ($Pgo -eq 'Us
                  Select-Object -First 1
         if (-not $pgort) { throw "pgort*.dll not found under $env:VCToolsInstallDir" }
         Copy-Item -LiteralPath $pgort.FullName -Destination $outDir
+        Add-TestSave $outDir
         Write-Host "`nTRAINING BUILD READY: $outDir\eden.exe" -ForegroundColor Green
         Write-Host @"
 Next:
- 1. Optional: copy your saves in (your play folder's user\nand -> $outDir\user\nand).
+ 1. The test save from $TestSave is already in (if it exists).
  2. Run $outDir\eden.exe and play Fortune's Weave for 10-20 minutes: busy towns,
     battles, menus, a cutscene. It runs a little slower while measuring; that's expected.
  3. Close the emulator normally (not from Task Manager), so it saves the measurements.
@@ -499,6 +523,8 @@ Next:
             }
         } finally { $archive.Dispose() }
         Write-Host "Package: $pkg" -ForegroundColor Green
+        # Test builds get the test save in their folder (after zipping, so the zip has none).
+        if ($Pgo -ne 'Use') { Add-TestSave $outDir }
     }
 
     Write-Host "`nBUILD SUCCEEDED: $outDir\$appExe" -ForegroundColor Green
