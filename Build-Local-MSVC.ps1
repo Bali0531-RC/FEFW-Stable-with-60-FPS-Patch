@@ -26,7 +26,10 @@ param(
     [switch]$Symbols,                       # with -Pgo Train/Use: debugging symbols (eden.pdb) for
                                             # profiling, built in a separate folder; same code
     [switch]$Clean,
-    [string]$TestSave = 'D:\save'          # test save copied into test builds (never into -Pgo Use)
+    [string]$TestSave = 'D:\save',         # test save copied into test builds (never into -Pgo Use)
+    [string]$TestName = '',                 # with -Portable (no PGO): build into FEFW-Test-<name> instead
+                                            # of the release folder, ready to run (test save, keys, stats launcher)
+    [string]$TestKeys = (Join-Path $env:USERPROFILE 'Documents\FEFW v1.1\user\keys')
 )
 if ($Pgo -in 'Train', 'Use' -and -not $Portable) { throw '-Pgo Train/Use are for the portable build: add -Portable.' }
 if ($Portable -and $Pgo -notin 'Train', 'Use') {
@@ -60,6 +63,24 @@ function Add-TestSave([string]$BuildDir) {
         Write-Warning "Test save copied in from $TestSave, but $profiles is missing: Eden will make a new profile and report the save as orphaned."
     }
 }
+
+# A named test build is made ready to run: this PC's keys (never in a package: the zip is made
+# first) and a launcher with the per-frame timing statistics on.
+function Add-TestRunner([string]$BuildDir) {
+    if (Test-Path $TestKeys) {
+        Copy-Item -LiteralPath $TestKeys -Destination (Join-Path $BuildDir 'user') -Recurse -Force
+    } else {
+        Write-Warning "No keys at $TestKeys: copy your keys into $BuildDir\user\keys before running it."
+    }
+    $exeName = Get-ChildItem -LiteralPath $BuildDir -Filter '*.exe' -File |
+               Where-Object { $_.Name -like "Fortune*" -or $_.Name -eq 'eden.exe' } | Select-Object -First 1
+    @(
+        '@echo off'
+        'cd /d "%~dp0"'
+        'set EDEN_BACK_THREAD_STATS=1'
+        "start `"`" `"$($exeName.Name)`""
+    ) | Set-Content -LiteralPath (Join-Path $BuildDir 'Start with timing stats.bat') -Encoding ASCII
+}
 $pgoDir    = Join-Path $root 'pgo-crowd-20261104'
 if ($Version -eq '1.12') {
     $sourceDir = Join-Path $root 'eden-fefw-1.12'
@@ -78,6 +99,10 @@ if ($Version -eq '1.12') {
 if ($Portable) {
     $buildDir = "$buildDir-portable"
     $outDir   = Join-Path $root 'FEFW-Stable-60FPS-Portable'
+    if ($TestName) {
+        if ($Pgo -in 'Train', 'Use') { throw '-TestName is for test builds, not -Pgo Train/Use.' }
+        $outDir = Join-Path $root "FEFW-Test-$TestName"
+    }
 }
 # Portable PGO: Train and Use share one build folder (compiled with /GL), so Use only re-links.
 $fefwPgoDir = Join-Path $root 'pgo-fefw'
@@ -529,6 +554,7 @@ Next:
         Write-Host "Package: $pkg" -ForegroundColor Green
         # Test builds get the test save in their folder (after zipping, so the zip has none).
         if ($Pgo -ne 'Use') { Add-TestSave $outDir }
+        if ($TestName) { Add-TestRunner $outDir }
     }
 
     Write-Host "`nBUILD SUCCEEDED: $outDir\$appExe" -ForegroundColor Green
