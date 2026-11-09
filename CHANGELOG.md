@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.6.1
+
+- **Fixed: a broken picture with NVIDIA DLSS (and FSR) in some cutscenes.** In one cutscene the game's motion vectors sat in memory the emulator had first seen used for an 8-bit colour image, and the upscaler was handed them in that colour format: DLSS got garbage motion (smearing, warped edges), and NVIDIA's Streamline logged "Cannot have undefined format" several times a frame. The upscalers now read the colour, motion, depth and output images in the formats the game's own DLSS pass reads them in.
+
 ## v1.6.6
 
 - **AMD FSR 4 now really starts on Radeon cards.** v1.6.4 and v1.6.5 still fell back to FSR 3.1 ("FidelityFX error 1", seen on an RX 7700 XT). AMD's FSR 4.1.2 library (FSR SDK 2.4) requires the app to say which API version it was built for, and takes the Vulkan device under a newer descriptor type; the emulator now does both, as AMD documents (and still tries the older way if that fails). Confirmed working on an RX 7700 XT. No particular AMD driver version is needed.
