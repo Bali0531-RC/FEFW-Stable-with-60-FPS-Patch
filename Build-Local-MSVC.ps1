@@ -143,8 +143,12 @@ try {
         # ones next to the .pgd, so gather any left beside the training copy.
         if (-not (Test-Path (Join-Path $fefwPgoDir 'eden.pgd'))) { throw 'No training profile yet: run -Pgo Train first.' }
         if (Test-Path $trainDir) {
-            Get-ChildItem -LiteralPath $trainDir -Filter 'eden!*.pgc' -File |
-                Move-Item -Destination $fefwPgoDir -Force
+            # Give each one the next free number: Save-PGO.ps1 numbers its own files in pgo-fefw,
+            # so the same name can mean a different run (overwriting it would lose that run).
+            foreach ($file in @(Get-ChildItem -LiteralPath $trainDir -Filter 'eden!*.pgc' -File)) {
+                $n = 1; while (Test-Path (Join-Path $fefwPgoDir "eden!$n.pgc")) { $n++ }
+                Move-Item -LiteralPath $file.FullName -Destination (Join-Path $fefwPgoDir "eden!$n.pgc")
+            }
         }
         $pgc = @(Get-ChildItem -LiteralPath $fefwPgoDir -Filter 'eden!*.pgc' -File)
         if (-not $pgc) { throw "No eden!*.pgc files in $fefwPgoDir or $trainDir. Play the game in FEFW-PGO-Training\eden.exe and close it normally first." }
