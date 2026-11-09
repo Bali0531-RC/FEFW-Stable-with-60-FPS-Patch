@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.6.2
+
+- **The Saramis hub (war arc) no longer drops to 15–20 FPS on mid-range PCs ([#18](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/18)).** The game builds some texture lookup tables on the GPU. The emulator reuses its own copy and checks it against the GPU's a frame later, but as a safety net it also did a real, blocking read of each table every 250 ms. A blocking read waits for all the work queued on the GPU; in the hub on an RTX 3060 that took about 85 ms, about 6 times a second, with the game's own threads stalled behind it (and a pause menu brought the frame rate straight back). The safety read now runs every 2 seconds; the per-frame check is unchanged.
+
 ## v1.6.6.1
 
 - **Fixed: a broken picture with NVIDIA DLSS (and FSR) in some cutscenes.** In one cutscene the game's motion vectors sat in memory the emulator had first seen used for an 8-bit colour image, and the upscaler was handed them in that colour format: DLSS got garbage motion (smearing, warped edges), and NVIDIA's Streamline logged "Cannot have undefined format" several times a frame. The upscalers now read the colour, motion, depth and output images in the formats the game's own DLSS pass reads them in.

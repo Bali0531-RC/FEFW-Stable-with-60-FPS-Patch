@@ -401,7 +401,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.6.1 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.6.2 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -453,6 +453,10 @@ FSR 4; on a laptop or older card, Performance may run better.
 HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the
 game; its Brightness and UI Brightness options then work. Restart the game after changing it.
 $fpsText$optionalText
+
+New in v1.6.6.2:
+- The Saramis hub (war arc) no longer drops to 15-20 FPS on mid-range PCs: a safety check
+  waited for the GPU several times a second there.
 
 New in v1.6.6.1:
 - Fixed a broken picture with NVIDIA DLSS (and FSR) in some cutscenes: the upscaler was given
