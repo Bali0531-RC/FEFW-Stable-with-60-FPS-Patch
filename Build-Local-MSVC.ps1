@@ -369,18 +369,16 @@ used to cause. Uncompressed needs a lot of video memory: on a card with less tha
 can run out and stutter or drop to single-digit FPS. The log says what Auto picked.
 Only controls need setting: Emulation > Configure > Controls.
 
-NVIDIA DLSS (optional, GeForce RTX cards): Emulation > Configure > Graphics, tick
-"Use NVIDIA DLSS in place of the game's DLSS", then click "Download from NVIDIA" in the panel
-below it (NVIDIA's files aren't included). Takes effect when the game starts. It replaces the
-game's own lightweight DLSS with the full PC version: sharper, with less ghosting.
-
-AMD FSR 4 (optional, AMD Radeon RX 7000/9000): Graphics, tick "Use AMD FSR 4 in place of the
-game's DLSS". Through fsr4-vk, a community Vulkan port of FSR 4.1.1 (not made or endorsed by
-AMD; amd_fidelityfx_upscaler_vk.dll, licences in licenses\fsr4-vk). RX 6000 cards may run it too,
-more slowly (untested); it didn't start on an NVIDIA card in testing.
-AMD FSR 3.1 (optional, any card): tick "Use AMD FSR 3.1 in place of the game's DLSS". Also used
-when NVIDIA DLSS or FSR 4 can't start. The game's own DLSS (the default) looks better at this
-game's 2x upscale; FSR 3.1's sharpening follows the FSR Sharpness slider.
+Upscaler: Emulation > Configure > Graphics > Upscaler. Takes effect when the game starts.
+- AMD FSR 3.1 (default, any card): replaces the game's own DLSS network, which takes work off
+  the emulator. Its sharpening follows the FSR Sharpness slider (25%).
+- Game's own DLSS: the game's own small network, run as compute passes. Some prefer its look.
+- NVIDIA DLSS (GeForce RTX): the best picture by far. Choose it, then click "Download from
+  NVIDIA" in the panel below the list (NVIDIA's files aren't included).
+- AMD FSR 4 (AMD Radeon RX 7000/9000): through fsr4-vk, a community Vulkan port of FSR 4.1.1
+  (not made or endorsed by AMD; amd_fidelityfx_upscaler_vk.dll, licences in licenses\fsr4-vk).
+  RX 6000 cards may run it too, more slowly (untested); it didn't start on an NVIDIA card.
+NVIDIA DLSS and FSR 4 fall back to FSR 3.1 when they can't start.
 
 HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the
 game; its Brightness and UI Brightness options then work. Restart the game after changing it.
@@ -389,6 +387,8 @@ $fpsText$optionalText
 New in v1.6.3:
 - A PGO build again: v1.6.2's download was built without it and ran slower on the CPU side.
 - Video memory cleanup starts earlier on big cards, so long sessions stay well below the limit.
+- AMD FSR 3.1 is the default upscaler, and the upscaler is one dropdown (Graphics > Upscaler).
+  Updating keeps your choice.
 
 New in v1.6.2:
 - HDR output (HDR10), and optional AMD FSR 3.1 and AMD FSR 4 in place of the game's DLSS.
