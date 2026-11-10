@@ -35,6 +35,7 @@ v1.6.7 brought the new look (theme, icon and launch screen) and a much shorter S
 |---|---|
 | 🎮 **Launch screen** | The game's card with **Play**, **Game Settings**, **Settings** and **Check for Updates** |
 | ✨ **Upscalers** | AMD FSR 3.1 (default, any card), AMD FSR 4 (Radeon), NVIDIA DLSS (GeForce RTX), with quality modes from Native/DLAA to Performance |
+| 🖥️ **Ultrawide** | Optional 21:9 (3440x1440) with the HUD and menus kept at 16:9, using [Kompas9](https://github.com/Kompas9/Switch-Game-Patches)'s patch (game version 1.1.0) |
 | 🌈 **HDR** | The game's own Switch 2 HDR mode, with its brightness options |
 | ⚡ **Runs well** | PGO-optimised for this game, fewer shader stutters, smoother busy scenes |
 | 🎞️ **60 FPS patch** | Included, off by default: one tick to try it |
