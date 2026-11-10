@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.6.7.3
+
+Mouse controls, faster busy scenes and cutscenes, and fixes for long sessions.
+
+- **New: mouse mode.** Fortune's Weave has a Joy-Con mouse cursor on Switch 2, and your PC mouse can now drive it: the cursor moves with the mouse, left and right click work, and the scroll wheel zooms (like W/S).
+  - Turn it on with the **Click to turn mouse mode on** button at the bottom of the window, or **Ctrl + Enter**. While it's on, the PC cursor is hidden and kept inside the game window; Ctrl + Enter or the button turns it off again.
+  - **Right-click the button to set the mouse sensitivity** (1–20, default 4), also while the game is running.
+  - **Separate controls for mouse play.** Player 1 now has two sets of controls, normal and mouse, and turning mouse mode on or off swaps between them. Pick which set to edit in *Settings → Controls*. The mouse set starts as a copy of your normal controls.
+  - The game normally only shows its cursor while the right Joy-Con lies flat; a small built-in patch to the game's 1.1.0 executable lets the PC mouse show it whatever the controller is doing.
+- **Cutscenes decode much faster ([#22](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/22)).** The game's 1440p AV1 cutscenes are one tile per frame, and the old decoder could only use one CPU thread for that, so a heavy frame took about 50 ms and some cutscenes dropped to 5–8 FPS on slower CPUs. They're now decoded with dav1d, which splits each frame across all threads and has AVX2/AVX-512 code. (The old decoder is still there as a fallback.)
+- **The Saramis Guesthouse and other busy scenes run faster ([#27](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/27)).**
+  - A shader instruction the game uses to add up values in shared memory reported every successful update as a failure, so the game's loops kept adding until their safety limit: wrong results and a ~10 ms compute shader that held the Guesthouse at 45 FPS. Found and measured by nanachi7700.
+  - Crowds bind three texture arrays of 1,024 entries on every draw; they're now capped at 256 entries, which KektJ measured at about 40 ms frames instead of 52–66 ms, with correct textures.
+  - The texture cache no longer goes through every cached image view and framebuffer each time it removes an image (nanachi7700's patch).
+- **No more slowdown in long sessions.** *VRAM Usage Mode* is now hidden and kept at Conservative: on Aggressive the texture cache grew until it filled the card (an RX 7700 XT log showed it reach 10 GiB over 90 minutes, with the game down to 16 FPS until restarted).
+- **Volume is always 100%.** The volume setting, its status-bar button and hotkeys are gone; use your PC's volume instead. Mute still works.
+- ***File → Open Save Data Location* opens the folder that really holds your save**, next to Fortune's Eden.exe. With a `.nup` or loose files it used to open an empty folder.
+- **The launch screen and game list show the game's real version** for `.nup` and loose files, instead of 1.0.0 (based on a55uka's Eglantine change).
+- **Fixes from a Linux player's investigation (RX 6700 XT):** some of the game's compute shaders wrote far past their local memory (a GPU fault and lost device on Linux's RADV driver), presentation could wait longer than needed, and one shader feature was declared incompletely.
+- Two more fixes from Eglantine: shader inputs at the top of the attribute range (gabrielskaminski) and the compute subgroup size on GPUs that only support it for other stages (Yuri Olive).
+- The source is now also on this repository's [`source`](../../tree/source) branch, with each release's exact source on a `source-v<version>` branch, as well as in `source.zip`.
+
 ## v1.6.7.2
 
 - **AMD FSR 3.1 for everyone who updated from v1.6.2 or earlier.** v1.6.3 replaced the old upscaler tick boxes with one *Upscaler* list and made AMD FSR 3.1 the default, but a config with no box ticked was moved to the game's own DLSS, the default before then. So most players who've been updating since then were still on the game's own DLSS, with *Upscaler quality* greyed out. They're now moved to AMD FSR 3.1 once. If you prefer the game's own DLSS, choose it again in *Settings → Graphics → Upscaler*; that choice is kept.

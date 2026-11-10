@@ -23,6 +23,9 @@ It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns
 
 ## What's new
 
+- **v1.6.7.3:** mouse mode: your PC mouse drives the game's Joy-Con mouse cursor (button at the bottom of the window, or Ctrl + Enter).
+- **v1.6.7.3:** faster cutscenes ([#22](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/22)) and busy scenes such as the Saramis Guesthouse ([#27](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/27)); no more slowdown after long sessions.
+- **v1.6.7.3:** volume is always 100% (use your PC's volume).
 - **v1.6.7.2:** players who updated from v1.6.2 or earlier and were still on the game's own DLSS are moved to AMD FSR 3.1, the default, once.
 - **v1.6.7.1:** updated installs now get the tuned image and speed settings too (vsync Mailbox, asynchronous shaders, 16x filtering).
 - **v1.6.7.1:** text fits in buttons and lists at Windows display scaling.
@@ -36,6 +39,7 @@ v1.6.7 brought the new look (theme, icon and launch screen) and a much shorter S
 |---|---|
 | 🎮 **Launch screen** | The game's card with **Play**, **Game Settings**, **Settings** and **Check for Updates** |
 | ✨ **Upscalers** | AMD FSR 3.1 (default, any card), AMD FSR 4 (Radeon), NVIDIA DLSS (GeForce RTX), with quality modes from Native/DLAA to Performance |
+| 🖱️ **Mouse mode** | Your PC mouse as the game's Joy-Con mouse cursor, with its own controls and sensitivity |
 | 🖥️ **Ultrawide** | Optional 21:9 (3440x1440) with the HUD and menus kept at 16:9, using [Kompas9](https://github.com/Kompas9/Switch-Game-Patches)'s patch (game version 1.1.0) |
 | 🌈 **HDR** | The game's own Switch 2 HDR mode, with its brightness options |
 | ⚡ **Runs well** | PGO-optimised for this game, fewer shader stutters, smoother busy scenes |
@@ -98,7 +102,7 @@ To try it, press **Game Settings** on the launch screen (or *Emulation → Confi
 
 ## Saves
 
-- **Where they are:** `<your folder>\user\nand\user\save\0000000000000000\<profile ID>\04007EF01F8AE000\`. Nothing is written to `%APPDATA%\eden`. Loose files and `.nup` both use this folder.
+- **Where they are:** `<your folder>\user\nand\user\save\0000000000000000\<profile ID>\04007EF01F8AE000\`. Nothing is written to `%APPDATA%\eden`. Loose files and `.nup` both use this folder, and *File → Open Save Data Location* opens it.
 - **Bring saves from normal Eden or another build:** close both, then copy the whole `%APPDATA%\eden\nand` folder (or the old build's `user\nand`) into this build's `user` folder, replacing the `nand` there. Copy the whole `nand`, not just the save files: it holds your user profile too.
 - **Back them up:** copy or zip the `user\nand` folder.
 
@@ -138,7 +142,7 @@ Older versions saved loose-file games under game ID `0000000000000000`. v1.3 and
 <details>
 <summary><b>Building from source</b></summary>
 
-The emulator source for this build is in `source.zip` (also inside the release download). It builds with Visual Studio 2026 (MSVC 19.51) and CMake:
+The emulator source for this build is in `source.zip` (also inside the release download) and on the [`source`](../../tree/source) branch, with each release's exact source on a `source-v<version>` branch. It builds with Visual Studio 2026 (MSVC 19.51) and CMake:
 
 1. Put `Build-Local-MSVC.ps1`, `Save-PGO.ps1`, `cmake-options.txt`, `LICENSE`, the `portable-config` folder and `source.zip` together in a folder whose path has no spaces, and rename `source.zip` to `eden-fefw-1.12-local.zip`.
 2. In PowerShell in that folder: `Set-ExecutionPolicy -Scope Process Bypass; .\Build-Local-MSVC.ps1 -Version 1.12 -Portable`
