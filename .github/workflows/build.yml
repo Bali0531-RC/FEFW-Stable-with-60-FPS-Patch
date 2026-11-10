@@ -92,7 +92,8 @@ jobs:
         run: |
           export ICON="$PWD/dist/dev.eden_emu.eden.svg"
           export DESKTOP="$PWD/dist/dev.eden_emu.eden.desktop"
-          export OPTIMIZE_LAUNCH=1 DEPLOY_OPENGL=1 DEPLOY_VULKAN=1
+          # No OPTIMIZE_LAUNCH: its start-up profiling needs a virtual X server (xvfb).
+          export DEPLOY_OPENGL=1 DEPLOY_VULKAN=1
           export ADD_HOOKS="wayland-is-broken.hook"
           export OUTPATH="$PWD/appimage"
           export OUTNAME="Fortunes-Eden.AppImage"
