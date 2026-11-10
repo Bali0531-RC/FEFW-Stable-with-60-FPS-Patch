@@ -365,6 +365,13 @@ cmake_language(DEFER CALL eden_render_isa_options)
         } else {
             Write-Warning 'licenses\ultrawide-kompas9 not found: the package will lack the ultrawide patch notice.'
         }
+        # dav1d decodes the AV1 cutscenes: its BSD 2-clause notice.
+        $dav1dLicense = Join-Path $sourceDir 'externals\dav1d\COPYING'
+        if (Test-Path $dav1dLicense) {
+            $dav1dDest = Join-Path $outDir 'licenses\dav1d'
+            New-Item -ItemType Directory -Force -Path $dav1dDest | Out-Null
+            Copy-Item -LiteralPath $dav1dLicense -Destination (Join-Path $dav1dDest 'COPYING.txt')
+        }
         # AMD FSR 3.1 (option amd_fsr3) is built from AMD's FidelityFX SDK shaders: its MIT notice.
         $ffxLicense = Join-Path $sourceDir 'externals\FidelityFX-SDK\LICENSE.txt'
         if (Test-Path $ffxLicense) {
