@@ -338,9 +338,13 @@ cmake_language(DEFER CALL eden_render_isa_options)
         } else {
             Write-Warning 'fsr4\amd_fidelityfx_upscaler_vk.dll not found: the package has no AMD FSR 4.'
         }
-        # The Fortune's Weave 60 fps cheat from this PC's profile, for others to copy into theirs.
-        $fpsMod = Join-Path $env:APPDATA 'eden\load\04007EF01F8AE000\60fps'
+        # The 60 fps add-on: mods\60fps beside this script when it's there (Jbuck7's "60 FPS + Speed
+        # Fix" exefs patch, used with the author's permission), else the plain 60 fps cheat from
+        # this PC's profile. The folder is named 60fps either way, so the preset settings keep it off.
+        $fpsMod = Join-Path $root 'mods\60fps'
+        if (-not (Test-Path $fpsMod)) { $fpsMod = Join-Path $env:APPDATA 'eden\load\04007EF01F8AE000\60fps' }
         $hasFpsMod = Test-Path $fpsMod
+        $fpsModIsSpeedFix = Test-Path (Join-Path $fpsMod 'exefs')
         # Portable profile: a "user" folder next to the exe keeps keys, firmware, settings and
         # saves inside this folder instead of %APPDATA%\eden.
         $userDir = Join-Path $outDir 'user'
@@ -379,7 +383,19 @@ cmake_language(DEFER CALL eden_render_isa_options)
             New-Item -ItemType Directory -Force -Path $modDest | Out-Null
             Copy-Item -LiteralPath $fpsMod -Destination $modDest -Recurse
         }
-        $fpsText = if ($hasFpsMod) { @"
+        $fpsText = if ($hasFpsMod -and $fpsModIsSpeedFix) { @"
+
+60 FPS MOD (Fortune's Weave) - Jbuck7's "60 FPS + Speed Fix"
+(https://gamebanana.com/mods/737603), included with permission in
+user\load\04007EF01F8AE000\60fps, OFF by default. 30 fps is the game's native framerate.
+It raises the game to 60 fps and keeps game speed real time: the systems that count frames
+(physics, cloth, camera eases, timers) were converted one by one, and cloth is smoothed.
+To try it: Game Settings > Add-Ons, tick 60fps, restart the game. Keep the speed limit at 100%.
+It needs a PC that holds 60: below 60, frame-counted parts (map camera pans, script pauses,
+menu animations) run slower in proportion (about 75% at 45 fps). Skirts and robes can still
+jitter a little. Game version 1.1.0 only (build ID DB93B0125F485060...); other versions ignore it.
+Details and known issues: user\load\04007EF01F8AE000\60fps\README.txt.
+"@ } elseif ($hasFpsMod) { @"
 
 60 FPS MOD (Fortune's Weave) - included in user\load\04007EF01F8AE000\60fps, but
 OFF by default. 30 fps is the game's native framerate on Switch 2 and runs smoothly
