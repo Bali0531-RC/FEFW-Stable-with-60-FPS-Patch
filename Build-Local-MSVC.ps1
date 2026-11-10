@@ -339,7 +339,7 @@ cmake_language(DEFER CALL eden_render_isa_options)
             Write-Warning 'fsr4\amd_fidelityfx_upscaler_vk.dll not found: the package has no AMD FSR 4.'
         }
         # The 60 fps add-on: mods\60fps beside this script when it's there (Jbuck7's "60 FPS + Speed
-        # Fix" exefs patch, used with the author's permission), else the plain 60 fps cheat from
+        # Fix" exefs patch; bundle it only with the author's permission), else the plain 60 fps cheat from
         # this PC's profile. The folder is named 60fps either way, so the preset settings keep it off.
         $fpsMod = Join-Path $root 'mods\60fps'
         if (-not (Test-Path $fpsMod)) { $fpsMod = Join-Path $env:APPDATA 'eden\load\04007EF01F8AE000\60fps' }
