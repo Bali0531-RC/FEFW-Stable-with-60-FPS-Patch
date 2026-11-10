@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Test builds for testers: Linux AppImage and Windows zip. Linux follows Eden-CI's AppImage
-# recipe (Arch container, quick-sharun); Windows matches the verified local MSVC build.
+# Fortune's Eden: Linux test build (AppImage plus a portable "user" folder). Follows Eden-CI's
+# AppImage recipe (Arch container, quick-sharun). The Windows releases are built locally.
 
-name: Build
+name: Linux build
 
 on:
   push:
-    branches: [main]
+    branches: [linux-build]
   workflow_dispatch:
 
 concurrency:
@@ -17,7 +17,7 @@ jobs:
   linux:
     name: Linux AppImage
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 300
     container:
       image: ghcr.io/pkgforge-dev/archlinux:latest
       options: --privileged --device /dev/fuse
@@ -32,7 +32,6 @@ jobs:
       - name: Trust the checkout
         run: |
           git config --global --add safe.directory '*'
-          # github.workspace is the host path inside containers; use the container's own.
           echo "CCACHE_DIR=$PWD/.ccache" >> "$GITHUB_ENV"
 
       - name: Install dependencies
@@ -75,12 +74,13 @@ jobs:
             -DENABLE_UPDATE_CHECKER=OFF -DENABLE_WEB_SERVICE=OFF -DENABLE_LTO=OFF \
             -DYUZU_USE_BUNDLED_FFMPEG=ON -DYUZU_USE_BUNDLED_SIRIT=ON \
             -DYUZU_USE_BUNDLED_OPENSSL=ON -DYUZU_USE_BUNDLED_SDL3=ON \
-            -DYUZU_DISABLE_LLVM=ON -DYUZU_CMD=ON -DYUZU_ROOM_STANDALONE=OFF \
-            -DBUILD_TESTING=OFF -DYUZU_TESTS=OFF -DDYNARMIC_TESTS=OFF -DENABLE_WERROR=OFF
+            -DYUZU_DISABLE_LLVM=ON -DYUZU_CMD=OFF -DYUZU_ROOM_STANDALONE=OFF \
+            -DBUILD_TESTING=OFF -DYUZU_TESTS=OFF -DDYNARMIC_TESTS=OFF -DENABLE_WERROR=OFF \
+            -DUSE_DISCORD_PRESENCE=OFF
 
       - name: Build
         run: |
-          cmake --build build --target yuzu yuzu-cmd
+          cmake --build build --target yuzu
           ccache -s
 
       - name: Package
@@ -89,97 +89,33 @@ jobs:
           export DESKTOP="$PWD/dist/dev.eden_emu.eden.desktop"
           export OPTIMIZE_LAUNCH=1 DEPLOY_OPENGL=1 DEPLOY_VULKAN=1
           export ADD_HOOKS="wayland-is-broken.hook"
-          export OUTPATH="$PWD/artifacts"
-          export OUTNAME="eden-ns2-fe-linux-${GITHUB_SHA::7}-x86_64.AppImage"
+          export OUTPATH="$PWD/appimage"
+          export OUTNAME="Fortunes-Eden.AppImage"
           curl -fL --retry 30 -o quick-sharun \
             https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/refs/heads/main/useful-tools/quick-sharun.sh
           chmod a+x quick-sharun
-          ./quick-sharun build/bin/eden build/bin/eden-cli
+          ./quick-sharun build/bin/eden
           ./quick-sharun --make-appimage
-          rm -f "$OUTPATH"/*.zsync
-          cp dist/testers/README-linux.txt "$OUTPATH/README.txt"
-          cp LICENSE.txt "$OUTPATH/"
-          ls -la "$OUTPATH"
+          version=$(sed -n 's/.*FefwVersion = "\(v[0-9.]*\)".*/\1/p' src/common/fefw_version.h)
+          name="Fortunes-Eden-${version}-linux-x86_64-${GITHUB_SHA::7}"
+          mkdir -p "artifacts/$name"
+          cp -r dist/fortunes-eden-linux/. "artifacts/$name/"
+          cp appimage/Fortunes-Eden.AppImage "artifacts/$name/"
+          chmod +x "artifacts/$name/Fortunes-Eden.AppImage" "artifacts/$name/start-fortunes-eden.sh"
+          cp LICENSE.txt "artifacts/$name/LICENSE"
+          mkdir -p "artifacts/$name/licenses/dav1d"
+          cp externals/dav1d/COPYING "artifacts/$name/licenses/dav1d/COPYING.txt"
+          if [ -f externals/FidelityFX-SDK/LICENSE.txt ]; then
+            mkdir -p "artifacts/$name/licenses/amd-fidelityfx-sdk"
+            cp externals/FidelityFX-SDK/LICENSE.txt "artifacts/$name/licenses/amd-fidelityfx-sdk/"
+          fi
+          # tar keeps the executable bits (the artifact zip would drop them).
+          tar -C artifacts -czf "$name.tar.gz" "$name"
+          mkdir -p out && mv "$name.tar.gz" out/
+          ls -la out "artifacts/$name"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: eden-ns2-fe-linux-x86_64
-          path: artifacts/
+          name: fortunes-eden-linux-x86_64
+          path: out/
           retention-days: 30
-
-  windows:
-    name: Windows
-    runs-on: windows-2022
-    timeout-minutes: 300
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: CPM cache
-        uses: actions/cache@v4
-        with:
-          path: .cache/cpm
-          key: cpm-windows-${{ hashFiles('**/cpmfile.json') }}
-          restore-keys: cpm-windows-
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: 6.8.3
-          arch: win64_msvc2022_64
-          modules: qtcharts
-          cache: true
-
-      - name: Install Vulkan SDK
-        shell: powershell
-        run: ./tools/windows/install-vulkan-sdk.ps1
-
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Configure
-        shell: pwsh
-        run: |
-          # CPM applies patches with Git's patch.exe; append so Git's link.exe never shadows MSVC's.
-          $env:PATH = "$env:PATH;C:\Program Files\Git\usr\bin"
-          cmake -S . -B build -G Ninja `
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl `
-            -DENABLE_QT=ON -DYUZU_USE_BUNDLED_QT=OFF "-DQt6_DIR=$env:QT_ROOT_DIR/lib/cmake/Qt6" `
-            -DCPMUTIL_FORCE_BUNDLED=ON -DYUZU_CMD=ON -DYUZU_ROOM=OFF `
-            -DBUILD_TESTING=OFF -DYUZU_TESTS=OFF -DDYNARMIC_TESTS=OFF `
-            -DENABLE_CUBEB=OFF -DENABLE_RESHADE=OFF -DENABLE_OPENGL=OFF `
-            -DENABLE_WEB_SERVICE=OFF -DENABLE_LTO=OFF -DYUZU_DISABLE_LLVM=ON -DENABLE_WERROR=OFF
-
-      - name: Build
-        shell: pwsh
-        run: |
-          $env:PATH = "$env:PATH;C:\Program Files\Git\usr\bin"
-          cmake --build build --target yuzu yuzu-cmd
-
-      - name: Package
-        shell: pwsh
-        run: |
-          $name = "eden-ns2-fe-windows-$($env:GITHUB_SHA.Substring(0, 7))"
-          $pkg = "artifacts/$name"
-          New-Item -ItemType Directory -Force $pkg, symbols | Out-Null
-          Copy-Item build/bin/eden.exe, build/bin/eden-cli.exe $pkg
-          & "$env:QT_ROOT_DIR/bin/windeployqt.exe" --release --no-compiler-runtime --no-opengl-sw --no-translations "$pkg/eden.exe"
-          Copy-Item "$env:VCToolsRedistDir/x64/Microsoft.VC143.CRT/*.dll" $pkg
-          Copy-Item LICENSE.txt $pkg
-          Copy-Item LICENSES "$pkg/LICENSES" -Recurse
-          Copy-Item dist/testers/README-windows.txt "$pkg/README.txt"
-          Copy-Item build/bin/eden.pdb, build/bin/eden-cli.pdb, build/bin/eden.exe, build/bin/eden-cli.exe symbols
-          Get-ChildItem $pkg | Select-Object Name, Length
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: eden-ns2-fe-windows-x64
-          path: artifacts/
-          retention-days: 30
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: eden-ns2-fe-windows-x64-symbols
-          path: symbols/
-          retention-days: 90
