@@ -13,6 +13,9 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   linux:
     name: Linux AppImage
@@ -125,3 +128,20 @@ jobs:
           name: fortunes-eden-linux-x86_64
           path: out/
           retention-days: 30
+
+      # A plain download link for testers (artifacts need a GitHub login): the .tar.gz goes on
+      # the test-builds branch, replacing the previous Linux build there.
+      - name: Publish to test-builds
+        run: |
+          file=$(ls out/*.tar.gz)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git fetch --depth=1 origin test-builds
+          git worktree add -B test-builds ../test-builds FETCH_HEAD
+          rm -f ../test-builds/Fortunes-Eden-*-linux-*.tar.gz
+          cp "$file" ../test-builds/
+          cd ../test-builds
+          git add -A
+          git commit -m "Linux test build $(basename "$file") from ${GITHUB_SHA::7}"
+          git push origin test-builds
+          echo "Download: https://github.com/${GITHUB_REPOSITORY}/raw/test-builds/$(basename "$file")"
