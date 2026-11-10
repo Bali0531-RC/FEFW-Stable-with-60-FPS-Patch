@@ -138,10 +138,11 @@ jobs:
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git fetch --depth=1 origin test-builds
           git worktree add -B test-builds ../test-builds FETCH_HEAD
-          rm -f ../test-builds/Fortunes-Eden-*-linux-*.tar.gz
-          cp "$file" ../test-builds/
+          # One fixed name, so links to the newest Linux build keep working.
+          rm -f ../test-builds/Fortunes-Eden-*linux*.tar.gz
+          cp "$file" ../test-builds/Fortunes-Eden-linux-x86_64.tar.gz
           cd ../test-builds
           git add -A
           git commit -m "Linux test build $(basename "$file") from ${GITHUB_SHA::7}"
           git push origin test-builds
-          echo "Download: https://github.com/${GITHUB_REPOSITORY}/raw/test-builds/$(basename "$file")"
+          echo "Download: https://github.com/${GITHUB_REPOSITORY}/raw/test-builds/Fortunes-Eden-linux-x86_64.tar.gz"
