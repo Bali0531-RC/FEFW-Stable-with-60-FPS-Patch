@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.6.7
+
+A new look and a much shorter Settings window.
+
+- **New look.** A Fortune's Eden theme (deep plum and gold, rounded controls, card-style groups, a sidebar-style settings list) is the new default; if you were on the previous default dark theme you're switched to it once, and a theme you picked yourself is kept. A new app icon (original artwork: a sword through a woven gold-and-crimson ring with laurel) replaces Eden's.
+- **Launch screen.** Above the game list, a card for Fire Emblem: Fortune's Weave shows its icon, version and play time, the upscaler and its mode, and **Play**, **Game Settings**, **Settings** and **Check for Updates** buttons.
+- **Settings cleaned up.** About 55 settings that don't apply to Fortune's Weave, duplicate the upscaler, or only tune the emulator's internals are no longer shown. Settings now has six pages: **General, System, Graphics, Audio, Controls** and **Advanced** (advanced graphics and post-processing effects, game folders and paths, logging).
+  - Gone from view: library applet modes, the window filter and anti-aliasing (the upscaler does those jobs), the frame pacing target (its "60 FPS" never unlocked 60 FPS: the 60fps add-on does), the renderer (Vulkan only: the upscalers, HDR and FSR 4 need it), aspect ratio (Ultrawide covers 21:9), region, time zone and custom clock, the microphone, the network page (no online play), and GPU and CPU emulation internals.
+  - **Always set now:** the 12 GB memory layout the game needs, GPU mode Fast and ASTC recompression Auto, whatever an older config says.
+  - Hidden settings keep their current values otherwise.
+- **Game Settings has only Add-Ons and Input Profiles ([#27](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/27)).** A per-game value of any other setting used to silently beat the one in Settings (a per-game Upscaler quality of Native kept a player at DLAA after they'd chosen Performance). Per-game values of those settings are now ignored, so Settings always applies.
+- **Add-ons can be changed while the game is running ([#26](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/26)),** applied the next time the game starts. If you start the game from its file, you can now tick the 60fps add-on from *Emulation → Configure Current Game → Add-Ons*.
+
 ## v1.6.6.2
 
 - **The Saramis hub (war arc) no longer drops to 15–20 FPS on mid-range PCs ([#18](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/18)).** The game builds some texture lookup tables on the GPU. The emulator reuses its own copy and checks it against the GPU's a frame later, but as a safety net it also did a real, blocking read of each table every 250 ms. A blocking read waits for all the work queued on the GPU; in the hub on an RTX 3060 that took about 85 ms, about 6 times a second, with the game's own threads stalled behind it (and a pause menu brought the frame rate straight back). The safety read now runs every 2 seconds; the per-frame check is unchanged.

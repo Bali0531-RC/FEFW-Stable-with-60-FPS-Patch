@@ -401,7 +401,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.6.2 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.7 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -421,16 +421,12 @@ are copied across automatically the first time.
 Everything (settings, saves, shader cache) stays in the user\ folder here, so this doesn't
 touch any other Eden install. To move it, move the whole folder. Deleting it deletes your saves.
 
-SETTINGS are already set up globally (Emulation > Configure), so they apply however the game
-is dumped or packed: the 12 GB memory layout the game needs, GPU accuracy Fast, asynchronous
-shaders on, vsync Mailbox, 16x anisotropic filtering, VRAM Usage Mode Conservative (up to three
-quarters of the card's video memory), ASTC recompression Auto, Bilinear window filter and
-anti-aliasing off. Pick the resolution so the output matches your screen (1.5X for 4K).
-
-ASTC RECOMPRESSION (Graphics > Advanced): Auto picks BC3, which the graphics card now
-re-compresses itself: a quarter of the video memory of Uncompressed, without the freezes BC3
-used to cause. Uncompressed needs a lot of video memory: on a card with less than 20 GB the game
-can run out and stutter or drop to single-digit FPS. The log says what Auto picked.
+SETTINGS are already set up (Emulation > Configure), so they apply however the game is dumped
+or packed: the 12 GB memory layout the game needs, GPU mode Fast and ASTC recompression Auto
+are always used; asynchronous shaders on, vsync Mailbox, 16x anisotropic filtering and VRAM
+Usage Mode Conservative are the defaults. Settings has six pages (General, System, Graphics,
+Audio, Controls, Advanced); Game Settings only has the game's add-ons and input profiles.
+Pick the resolution so the output matches your screen (1.5X for 4K).
 Only controls need setting: Emulation > Configure > Controls.
 
 Upscaler: Emulation > Configure > Graphics > Upscaler. Takes effect when the game starts.
@@ -453,6 +449,13 @@ FSR 4; on a laptop or older card, Performance may run better.
 HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the
 game; its Brightness and UI Brightness options then work. Restart the game after changing it.
 $fpsText$optionalText
+
+New in v1.6.7:
+- A new look: Fortune's Eden theme, app icon, and a launch screen with Play, Game Settings,
+  Settings and Check for Updates.
+- A much shorter Settings window (six pages); Game Settings has only add-ons and input
+  profiles, so the settings in Settings always apply.
+- Add-ons (the 60fps mod) can be changed while the game runs, applied at the next start.
 
 New in v1.6.6.2:
 - The Saramis hub (war arc) no longer drops to 15-20 FPS on mid-range PCs: a safety check
