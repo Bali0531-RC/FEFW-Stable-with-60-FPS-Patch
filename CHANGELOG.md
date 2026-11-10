@@ -14,14 +14,14 @@ Mouse controls, faster busy scenes and cutscenes, and fixes for long sessions.
   - A shader instruction the game uses to add up values in shared memory reported every successful update as a failure, so the game's loops kept adding until their safety limit: wrong results and a ~10 ms compute shader that held the Guesthouse at 45 FPS. Found and measured by nanachi7700.
   - Crowds bind three texture arrays of 1,024 entries on every draw; they're now capped at 256 entries, which KektJ measured at about 40 ms frames instead of 52–66 ms, with correct textures.
   - The texture cache no longer goes through every cached image view and framebuffer each time it removes an image (nanachi7700's patch).
-- **No more slowdown in long sessions.** *VRAM Usage Mode* is now hidden and kept at Conservative: on Aggressive the texture cache grew until it filled the card (an RX 7700 XT log showed it reach 10 GiB over 90 minutes, with the game down to 16 FPS until restarted).
+- **VRAM Usage Mode is now hidden and kept at Conservative.** On Aggressive the texture cache grew until it filled the card (an RX 7700 XT log showed it reach 10 GiB over 90 minutes, with the game down to 16 FPS until restarted). Some players still see a gradual slowdown over an hour or two on Conservative; that is being looked into, and restarting the game clears it.
 - **NVIDIA DLSS no longer gives up for the whole session after one failure ([#31](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/31)).** On an 8 GB RTX 3070 Laptop, DLSS ran out of video memory after 15 minutes; the emulator then switched to AMD FSR 3.1 for good while still holding DLSS's memory, and the game fell to 15–30 FPS. Now DLSS's memory is freed, FSR 3.1 stands in for 30 seconds and DLSS is tried again (up to 3 times). On 8 GB cards, *Upscaler quality* Performance uses the least video memory.
 - **Volume is always 100%.** The volume setting, its status-bar button and hotkeys are gone; use your PC's volume instead. Mute still works.
 - ***File → Open Save Data Location* opens the folder that really holds your save**, next to Fortune's Eden.exe. With a `.nup` or loose files it used to open an empty folder.
 - **The launch screen and game list show the game's real version** for `.nup` and loose files, instead of 1.0.0 (based on a55uka's Eglantine change).
 - **Fixes from a Linux player's investigation (RX 6700 XT):** some of the game's compute shaders wrote far past their local memory (a GPU fault and lost device on Linux's RADV driver), presentation could wait longer than needed, and one shader feature was declared incompletely.
 - Two more fixes from Eglantine: shader inputs at the top of the attribute range (gabrielskaminski) and the compute subgroup size on GPUs that only support it for other stages (Yuri Olive).
-- The source is now also on this repository's [`source`](../../tree/source) branch, with each release's exact source on a `source-v<version>` branch, as well as in `source.zip`.
+- The source is now also on this repository's [`source`](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/tree/source) branch, with each release's exact source on a `source-v<version>` branch, as well as in `source.zip`.
 
 ## v1.6.7.2
 
