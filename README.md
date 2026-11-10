@@ -154,6 +154,17 @@ That gives `FEFW-Stable-60FPS-Portable` (with `Fortune's Eden.exe`) and a zip of
 3. `.\Build-Local-MSVC.ps1 -Version 1.12 -Portable -Pgo Use` builds the optimised package.
 </details>
 
+## Linux (test build)
+
+> [!NOTE]
+> A **Linux test build** is available: **[Fortunes-Eden-linux-x86_64.tar.gz](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/raw/test-builds/Fortunes-Eden-linux-x86_64.tar.gz)** (64-bit, AppImage). It's new and not yet tested on many PCs, so please [report how it goes](../../issues) with your distribution, GPU and driver, and attach `user/log/eden_log.txt`.
+
+- Extract it and run `./start-fortunes-eden.sh`: settings, saves and shader cache stay in the `user` folder next to it, apart from any other Eden install. Put your keys in `user/keys`.
+- It's the same emulator as the Windows build, but without NVIDIA DLSS or AMD FSR 4 (both are Windows-only); AMD FSR 3.1 is the default upscaler.
+- No automatic updates: the link always gives the newest Linux build, so download it again for updates.
+- If it doesn't start, install FUSE 2 (`fuse2` or `libfuse2`), or run `./Fortunes-Eden.AppImage --appimage-extract-and-run`.
+- Source: the [`linux-build`](../../tree/linux-build) branch.
+
 ## Credits and licence
 
 Built on [Eden](https://eden-emu.dev), [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's 1.12 release](https://github.com/xDarkWindx/eden-fefw), with the NUP loader, AMD fix and NVIDIA DLSS support from [Djihads80's Eglantine](https://github.com/Djihads80/Eglantine) (Duck912, arisqz), and shader reuse and shutdown fixes from PokeDinner (Wael3rd, kraibse, Takoroka). AMD FSR 3.1 is built from AMD's FidelityFX SDK (MIT) with the upscaler from Eglantine (Duck912); AMD FSR 4 is AMD's own signed FSR 4.1.2 Vulkan library from the FSR SDK 2.4, redistributed unmodified under the FidelityFX SDK licence (`licenses\amd-fsr4`). AMD and FidelityFX are trademarks of AMD; this project is not made or endorsed by AMD. NVIDIA DLSS and Streamline are NVIDIA's; none of NVIDIA's files are included. Licensed under **GPL-3.0-or-later**; the full source for this build is included as `source.zip`. Not affiliated with, endorsed by or sponsored by Nintendo or NVIDIA. For use only with games, keys and firmware legally dumped from your own console; see the legal notice at the top.
