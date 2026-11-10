@@ -21,11 +21,12 @@ A portable, ready-to-play Windows build of the Eden emulator, made for *Fire Emb
 
 It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns2-fe) and [xDarkWindx's eden-fefw 1.12](https://github.com/xDarkWindx/eden-fefw/releases/tag/1.12).
 
-## What's new in v1.6.7.1
+## What's new
 
-- Updated installs now get the tuned image and speed settings too (vsync Mailbox, asynchronous shaders, 16x filtering).
-- Text fits in buttons and lists at Windows display scaling.
-- No more "Decryption keys are missing" question at startup.
+- **v1.6.7.2:** players who updated from v1.6.2 or earlier and were still on the game's own DLSS are moved to AMD FSR 3.1, the default, once.
+- **v1.6.7.1:** updated installs now get the tuned image and speed settings too (vsync Mailbox, asynchronous shaders, 16x filtering).
+- **v1.6.7.1:** text fits in buttons and lists at Windows display scaling.
+- **v1.6.7.1:** no more "Decryption keys are missing" question at startup.
 
 v1.6.7 brought the new look (theme, icon and launch screen) and a much shorter Settings window. Every version is in the [changelog](CHANGELOG.md).
 

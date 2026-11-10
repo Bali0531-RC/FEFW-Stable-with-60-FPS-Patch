@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.7.2
+
+- **AMD FSR 3.1 for everyone who updated from v1.6.2 or earlier.** v1.6.3 replaced the old upscaler tick boxes with one *Upscaler* list and made AMD FSR 3.1 the default, but a config with no box ticked was moved to the game's own DLSS, the default before then. So most players who've been updating since then were still on the game's own DLSS, with *Upscaler quality* greyed out. They're now moved to AMD FSR 3.1 once. If you prefer the game's own DLSS, choose it again in *Settings → Graphics → Upscaler*; that choice is kept.
+
 ## v1.6.7.1
 
 - **Updated installs get the tuned image and speed settings.** A fresh install starts from the package's settings file, but an update keeps your own, where settings you never changed say "use the default", and that default was the emulator's built-in value, not the package's. So updated installs had vsync FIFO instead of Mailbox, asynchronous shaders off, anisotropic filtering Automatic instead of 16x, reactive flushing on and FSR sharpening 25% instead of 150%. The built-in defaults are now the package's values, so they apply after updating too. Settings you changed yourself are kept.
