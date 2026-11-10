@@ -27,6 +27,11 @@ jobs:
     env:
       CCACHE_MAXSIZE: 2G
     steps:
+      # The container has no git; without it the checkout is a plain download.
+      - name: Install git
+        run: |
+          for _ in 1 2 3; do pacman -Syu --noconfirm --needed git && break; done
+
       - uses: actions/checkout@v4
 
       - name: Trust the checkout
