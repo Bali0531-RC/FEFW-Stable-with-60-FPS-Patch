@@ -1940,13 +1940,30 @@ void TextureCacheRuntime::CopyImage(Image& dst, Image& src,
     // As per the size-compatible formats section of vulkan, copy manually via ReinterpretImage
     // these images that aren't size-compatible
     if (BytesPerBlock(src.info.format) != BytesPerBlock(dst.info.format)) {
-#ifdef _WIN32
-        // On Windows, linear images cause device loss when used in image copies.
-        // Tested with TitleID: 0x010067300059A00 (Mario + Rabbids Kingdom Battle)
         if (src.info.type == ImageType::Linear || dst.info.type == ImageType::Linear) {
-            return;
-        }
+            // On Windows, linear images cause device loss when used in image copies.
+            // Tested with TitleID: 0x010067300059A00 (Mario + Rabbids Kingdom Battle)
+            // Fortune's Eden (Linux test): FEFW_SKIP_LINEAR_COPIES=1 skips them here too, as
+            // Windows does, to compare (Fortune's Weave's effects look right on Windows).
+#ifdef _WIN32
+            constexpr bool skip = true;
+#else
+            static const bool skip = [] {
+                const char* value = std::getenv("FEFW_SKIP_LINEAR_COPIES");
+                return value != nullptr && value[0] == '1';
+            }();
 #endif
+            static std::atomic<u64> count{0};
+            const u64 n = count.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (n == 1 || std::has_single_bit(n)) {
+                LOG_INFO(Render_Vulkan,
+                         "Linear image copy between different formats: {} so far ({})", n,
+                         skip ? "skipped, as on Windows" : "copied");
+            }
+            if (skip) {
+                return;
+            }
+        }
         auto oneCopy = VideoCommon::ImageCopy{
             .src_offset = VideoCommon::Offset3D(0, 0, 0),
             .dst_offset = VideoCommon::Offset3D(0, 0, 0),
