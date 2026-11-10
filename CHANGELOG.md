@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.6.7.1
+
+- **Updated installs get the tuned image and speed settings.** A fresh install starts from the package's settings file, but an update keeps your own, where settings you never changed say "use the default", and that default was the emulator's built-in value, not the package's. So updated installs had vsync FIFO instead of Mailbox, asynchronous shaders off, anisotropic filtering Automatic instead of 16x, reactive flushing on and FSR sharpening 25% instead of 150%. The built-in defaults are now the package's values, so they apply after updating too. Settings you changed yourself are kept.
+- **Text fits in buttons, tabs and lists at Windows display scaling** (125%, 150%): the theme's padding was too big, and the launch screen's Play button sized itself from a smaller font than it drew.
+- **The .exe's icon updates with the app's icon in future builds.** If Explorer still shows Eden's old icon for `Fortune's Eden.exe` after updating, that's Windows' icon cache: run `ie4uinit.exe -show` (Win+R) or sign out and back in.
+
 ## v1.6.7
 
 A new look and a much shorter Settings window.
