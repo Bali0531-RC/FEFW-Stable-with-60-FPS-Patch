@@ -23,8 +23,11 @@ It builds on [Duck912's Fortune's Weave fork](https://github.com/Duck912/eden-ns
 
 ## What's new
 
+- **v1.6.7.4:** a real 60 FPS mode (*Settings → Performance*): game speed follows your frame rate from 30 to 60 FPS, so no slow motion below 60, and capes and hair move smoothly.
+- **v1.6.7.4:** new *Performance* page: Reflections, Ambient occlusion and Reduced crowd detail.
+- **v1.6.7.4:** video memory creeps up far less in long sessions.
 - **v1.6.7.3:** mouse mode: your PC mouse drives the game's Joy-Con mouse cursor (button at the bottom of the window, or Ctrl + Enter).
-- **v1.6.7.3:** faster cutscenes ([#22](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/22)) and busy scenes such as the Saramis Guesthouse ([#27](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/27)); no more slowdown after long sessions.
+- **v1.6.7.3:** faster cutscenes ([#22](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/22)) and busy scenes such as the Saramis Guesthouse ([#27](https://github.com/TheSneakyBadger/FEFW-Stable-with-60-FPS-Patch/issues/27)); fixes for long sessions.
 - **v1.6.7.3:** volume is always 100% (use your PC's volume).
 - **v1.6.7.2:** players who updated from v1.6.2 or earlier and were still on the game's own DLSS are moved to AMD FSR 3.1, the default, once.
 - **v1.6.7.1:** updated installs now get the tuned image and speed settings too (vsync Mailbox, asynchronous shaders, 16x filtering).
@@ -43,13 +46,14 @@ v1.6.7 brought the new look (theme, icon and launch screen) and a much shorter S
 | 🖥️ **Ultrawide** | Optional 21:9 (3440x1440) with the HUD and menus kept at 16:9, using [Kompas9](https://github.com/Kompas9/Switch-Game-Patches)'s patch (game version 1.1.0) |
 | 🌈 **HDR** | The game's own Switch 2 HDR mode, with its brightness options |
 | ⚡ **Runs well** | PGO-optimised for this game, fewer shader stutters, smoother busy scenes |
-| 🎞️ **60 FPS patch** | Included, off by default: one tick to try it |
+| 🎞️ **60 FPS mode** | Built in, off by default: game speed follows your real frame rate (30–60 FPS) |
+| 🎛️ **Performance options** | Lighter reflections, ambient occlusion and crowd detail for slower PCs |
 | 🔄 **Auto-updates** | Asks first, checks the download, never touches saves or settings |
 | 💾 **Portable** | Settings, saves and shader cache live next to the .exe |
 
 > [!CAUTION]
 > **Legal use only. Piracy is not acceptable and is not supported in any way.** Please support the developers by buying the games you play.
-> - **Nothing of Nintendo's is included or linked:** no games, ROMs, keys (`prod.keys`, `title.keys`), firmware, system files or copyrighted game assets. This repository, its releases and its downloads contain only the emulator, its source code, settings, and a small community cheat code for 60 FPS.
+> - **Nothing of Nintendo's is included or linked:** no games, ROMs, keys (`prod.keys`, `title.keys`), firmware, system files or copyrighted game assets. This repository, its releases and its downloads contain only the emulator, its source code and settings.
 > - **You need your own legally obtained copy of the game, dumped yourself from your own console**, along with your own keys and firmware dumped from that same console. How to get these is not covered here, and no help is given for obtaining them any other way.
 > - **Issues, discussions or requests involving pirated games, shared keys or downloaded firmware will be closed** without help.
 > - This is a free, non-commercial project: no donations, paywalls or paid early access.
@@ -65,7 +69,7 @@ v1.6.7 brought the new look (theme, icon and launch screen) and a much shorter S
 
 ## Getting started
 
-1. Download the [latest release](../../releases/latest) (`FEFW-Stable-60FPS-Portable.zip`, about 71 MB).
+1. Download the [latest release](../../releases/latest) (`FEFW-Stable-60FPS-Portable.zip`, about 74 MB).
 2. Extract the whole folder somewhere outside Program Files and run `Fortune's Eden.exe`.
 3. Double-click the empty game list and choose the folder containing your game (or use *File → Load File* to open a `.nup` directly).
 4. The game's card appears at the top: press **Play**.
@@ -94,11 +98,13 @@ NVIDIA DLSS and FSR 4 fall back to FSR 3.1 if they can't start. The status bar a
 
 Fortune's Weave has an HDR mode on Switch 2. Turn on HDR in Windows (*Settings → System → Display → Use HDR*), tick **HDR output (HDR10)** in *Settings → Graphics*, and start the game. Its *Brightness* and *UI Brightness* options then adjust the picture. The game checks for HDR once when it starts, so restart it after changing either setting.
 
-## 60 FPS patch
+## 60 FPS mode
 
-**30 FPS is how Fortune's Weave runs on Switch 2**, and it's how this build runs by default: smoothly, everywhere. A 60 FPS patch is included but **off by default**, because 60 FPS can feel choppy. On high-end CPUs it's fairly smooth at 1X resolution.
+**30 FPS is how Fortune's Weave runs on Switch 2**, and it's how this build runs by default. The built-in **60 FPS mode** is off by default: turn it on in *Settings → Performance → 60 FPS mode* and start the game.
 
-To try it, press **Game Settings** on the launch screen (or *Emulation → Configure Current Game* while playing), open **Add-Ons**, tick **60fps** and restart the game. If it causes problems, untick it; if it still feels choppy, **delete** the folder `user\load\04007EF01F8AE000\60fps` next to `Fortune's Eden.exe`.
+Unlike the old 60 FPS cheat, which forced a fixed 60 and made the whole game run in slow motion whenever a PC fell below it, game speed follows your real frame rate anywhere from 30 to 60 FPS. About 50 places in the game that counted per frame (the map cursor and markers, menus, physics, cutscene shake, character creation and more) were traced and fixed so they keep their normal speed, and capes and hair are simulated every frame with physics scaled to the frame time. It's only for game version 1.1.0. An old `60fps` add-on folder still turns it on too; you can delete it.
+
+The same page has **Reflections**, **Ambient occlusion** and **Reduced crowd detail**, lighter versions of the game's own effects for PCs that can't hold the frame rate.
 
 ## Saves
 

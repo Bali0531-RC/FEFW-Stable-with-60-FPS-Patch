@@ -338,9 +338,7 @@ cmake_language(DEFER CALL eden_render_isa_options)
         } else {
             Write-Warning 'fsr4\amd_fidelityfx_upscaler_vk.dll not found: the package has no AMD FSR 4.'
         }
-        # The Fortune's Weave 60 fps cheat from this PC's profile, for others to copy into theirs.
-        $fpsMod = Join-Path $env:APPDATA 'eden\load\04007EF01F8AE000\60fps'
-        $hasFpsMod = Test-Path $fpsMod
+        # 60 FPS mode is built in since v1.6.7.4 (Settings > Performance): no mod is packaged.
         # Portable profile: a "user" folder next to the exe keeps keys, firmware, settings and
         # saves inside this folder instead of %APPDATA%\eden.
         $userDir = Join-Path $outDir 'user'
@@ -381,24 +379,18 @@ cmake_language(DEFER CALL eden_render_isa_options)
         } else {
             Write-Warning 'externals\FidelityFX-SDK\LICENSE.txt not found: the package will lack the FSR 3.1 notice.'
         }
-        if ($hasFpsMod) {
-            $modDest = Join-Path $userDir 'load\04007EF01F8AE000'
-            New-Item -ItemType Directory -Force -Path $modDest | Out-Null
-            Copy-Item -LiteralPath $fpsMod -Destination $modDest -Recurse
-        }
-        $fpsText = if ($hasFpsMod) { @"
+        $fpsText = @"
 
-60 FPS MOD (Fortune's Weave) - included in user\load\04007EF01F8AE000\60fps, but
-OFF by default. 30 fps is the game's native framerate on Switch 2 and runs smoothly
-everywhere, while 60 fps can feel choppy.
-Fast PC? It's fairly smooth on high-end CPUs at 1x resolution (FSR upscales to your
-screen); higher resolutions roughly double the choppiness. To try it, right-click the
-game > Properties > Add-Ons and tick 60fps.
-If it causes problems, untick it; if it still feels choppy, DELETE the folder
-user\load\04007EF01F8AE000\60fps (unticking it isn't always enough).
-It only works with the game version whose build ID starts DB93B0125F485060;
-other versions just ignore it.
-"@ } else { '' }
+60 FPS MODE AND PERFORMANCE (Fortune's Weave 1.1.0) - Emulation > Configure > Performance.
+- 60 FPS mode (off by default): the game runs at up to 60 FPS instead of its native 30. Game
+  speed follows your real frame rate, so it stays correct anywhere between 30 and 60 FPS
+  (no slow motion when your PC can't hold 60). Capes and hair are simulated every frame.
+  Takes effect when the game starts. Only for game version 1.1.0 (build ID DB93B0125F485060).
+  The older "60fps" add-on folder still turns it on too; you can delete it.
+- Reflections (Full / Reduced / Off), Ambient occlusion and Reduced crowd detail: lighter
+  versions of the game's own effects for PCs that can't hold the frame rate. Nothing on disk
+  is changed. Take effect when the game starts.
+"@
         $optionalText = @"
 
 ULTRAWIDE 3440x1440 (optional, OFF by default) - for 21:9 monitors: Emulation > Configure >
@@ -408,7 +400,7 @@ fullscreen. It widens the 3D camera and keeps the HUD, menus and movies centred 
 version 1.1.0 (build ID DB93B0125F485060).
 "@
         @"
-Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.7.2 - portable Windows x64 build
+Fortune's Eden (FEFW Stable with 60 FPS Patch) v1.6.7.4 - portable Windows x64 build
 (Eden FE: Fortune's Weave fork, built on Duck912's eden-ns2-fe and xDarkWindx's eden-fefw $Version)
 
 Runs on any 64-bit Windows 10/11 PC with a Vulkan-capable GPU. No CPU-specific code
@@ -431,8 +423,8 @@ touch any other Eden install. To move it, move the whole folder. Deleting it del
 SETTINGS are already set up (Emulation > Configure), so they apply however the game is dumped
 or packed: the 12 GB memory layout the game needs, GPU mode Fast and ASTC recompression Auto
 are always used; asynchronous shaders on, vsync Mailbox, 16x anisotropic filtering and VRAM
-Usage Mode Conservative are the defaults. Settings has six pages (General, System, Graphics,
-Audio, Controls, Advanced); Game Settings only has the game's add-ons and input profiles.
+Usage Mode Conservative are the defaults. Settings has seven pages (General, System, Graphics,
+Performance, Audio, Controls, Advanced); Game Settings only has the game's add-ons and input profiles.
 Pick the resolution so the output matches your screen (1.5X for 4K).
 Only controls need setting: Emulation > Configure > Controls.
 
@@ -456,6 +448,26 @@ FSR 4; on a laptop or older card, Performance may run better.
 HDR (optional): turn on HDR in Windows, tick "HDR output (HDR10)" in Graphics and start the
 game; its Brightness and UI Brightness options then work. Restart the game after changing it.
 $fpsText$optionalText
+
+New in v1.6.7.4:
+- 60 FPS mode is built in (Settings > Performance). Game speed follows the real frame rate
+  from 30 to 60 FPS, so a PC that drops below 60 no longer plays in slow motion. About 50
+  places in the game that counted per frame were traced and fixed (map cursor and markers,
+  menus, physics, cutscene shake, character creation and more); capes and hair are
+  simulated every frame with physics scaled to the frame time.
+- New Performance page: Reflections, Ambient occlusion and Reduced crowd detail.
+- Video memory creeps up far less over long sessions. Freed memory is returned to the
+  driver (large textures get their own allocation, smaller blocks for the rest), cleanup goes
+  by the memory actually in use, unused buffers are freed, and busy scenes are cleaned up
+  straight away instead of filling to the limit. This should mean fewer stutters in long
+  sessions and on 8 GB cards.
+- The Play button on the launch screen fits its text.
+
+New in v1.6.7.3:
+- Mouse mode: the PC mouse drives the game's Joy-Con mouse cursor (Ctrl + Enter, or the
+  button at the bottom of the window; right-click it for sensitivity).
+- Cutscenes decode much faster (dav1d), busy scenes such as the Saramis Guesthouse run
+  faster, and NVIDIA DLSS tries again after a failure instead of giving up.
 
 New in v1.6.7.2:
 - Players who updated from v1.6.2 or earlier and were still on the game's own DLSS are
