@@ -2,26 +2,44 @@
 
 ## v1.6.7.4
 
-A proper 60 FPS mode, a Performance page, and video memory that stays put in long sessions.
+A proper 60 FPS mode, a new Performance page, and video memory that stays put in long sessions.
 
-- **New: 60 FPS mode, built in.** Turn it on in *Settings → Performance → 60 FPS mode* (off by default, applies when the game starts). It replaces the old 60fps cheat, which forced a fixed 60 and made the whole game run in slow motion whenever your PC dropped below 60.
-  - **Game speed follows your real frame rate**, anywhere from 30 to 60 FPS. If your PC holds 45 FPS, the game still runs at normal speed, just with fewer frames. A single slow frame (a shader being built) is ignored rather than making the game jump.
-  - **About 50 places in the game that counted per frame were traced and fixed**, so they keep their normal speed at any frame rate: the map cursor and markers, menu animations and scrolling text, physics, cutscene screen shake, character creation, look-at and hold timers, and more.
-  - **Capes and hair are simulated every frame** with their physics (gravity, wind, damping, stiffness) scaled to the frame time, so they move smoothly at 60 and in between, at their normal speed.
-  - Only for game version 1.1.0. If you used the old **60fps** add-on folder, it still turns the mode on; you can delete it.
-  - Thanks to Jbuck7, whose 60 FPS cheat was the map of where the game counts per frame; the fixes themselves are new code.
-- **New: Performance page** (*Settings → Performance*), with options that lighten the game's own graphics effects for PCs that can't hold the frame rate. Nothing on disk is changed, and they apply when the game starts.
-  - **Reflections**: Full, Reduced (8 rays instead of 32, a little grainier) or Off. Mostly helps in the hubs.
-  - **Ambient occlusion**: on or off. Off saves GPU time everywhere, with flatter shading in corners.
-  - **Reduced crowd detail**: crowd characters switch to their simpler models twice as soon, which lightens busy towns and battles.
-- **Video memory creeps up far less over long sessions.** On a 24 GB card it used to climb towards 18 GB within 15 minutes and then clean up in stutter-causing bursts; it now settles around 14 GB at 1x.
-  - Freed memory is given back to the driver: large textures get their own allocation, and the rest are in smaller blocks, so cleanups no longer leave gigabytes stranded in half-used blocks.
-  - Cleanup goes by the memory actually in use, so it stops throwing out textures it doesn't need to.
-  - Buffers the game hasn't used for 30 seconds are freed (before, they were never freed on most cards).
-  - Busy scenes are cleaned up straight away instead of filling to the limit, and images the GPU drew into that can't be written back are kept until the limit, so effects don't go black.
-  - This should also help with the slowdown some players saw over an hour or two, and with 8 GB cards. If you still see a slowdown in long sessions, please send your log.
-- **The Play button on the launch screen** is tall enough for its text again.
-- **Linux (test build):** game files no longer run out of open-file handles ("Too many open files"), and the updater is Windows-only.
+#### 🎞️ 60 FPS mode, built in
+
+Turn it on in **Settings → Performance → 60 FPS mode**, then start the game. It's off by default.
+
+- **No more slow motion.** The old 60 FPS cheat forced a fixed 60, so the whole game slowed down whenever your PC dropped below it. Now game speed follows your real frame rate anywhere from **30 to 60 FPS**: at 45 FPS the game still runs at normal speed, just with fewer frames.
+- **About 50 per-frame timers fixed.** The map cursor and markers, menu animations and scrolling text, physics, cutscene screen shake, character creation, look-at and hold timers all keep their normal speed at any frame rate.
+- **Smooth capes and hair.** They're simulated every frame, with gravity, wind, damping and stiffness scaled to the frame time.
+- **Steadier on hitches.** A single slow frame (a shader being built) is ignored instead of making the game jump.
+- Only for game version **1.1.0**. An old `60fps` add-on folder still turns it on; you can delete it.
+- Thanks to **Jbuck7**, whose 60 FPS cheat was the map of where the game counts per frame. The fixes themselves are new code.
+
+#### 🎛️ New Performance page
+
+Lighter versions of the game's own graphics effects, for PCs that can't hold the frame rate. Nothing on disk is changed; they apply when the game starts.
+
+| Option | What it does |
+|---|---|
+| **Reflections** | Full, Reduced (8 rays instead of 32, a little grainier) or Off. Mostly helps in the hubs. |
+| **Ambient occlusion** | The soft shading in corners. Off saves GPU time everywhere, with flatter lighting. |
+| **Reduced crowd detail** | Crowd characters switch to simpler models twice as soon, lightening busy towns and battles. |
+
+#### 🧠 Video memory stays put in long sessions
+
+On a 24 GB card, video memory used to climb towards 18 GB within 15 minutes and then clean up in stutter-causing bursts. At 1x it now settles around 14 GB.
+
+- **Freed memory goes back to the driver.** Large textures get their own allocation and the rest use smaller blocks, so cleanups no longer leave gigabytes stranded.
+- **Cleanup measures what's really in use**, so it stops throwing out textures it doesn't need to.
+- **Unused buffers are freed** after 30 seconds (before, most cards never freed them).
+- **Busy scenes are cleaned up straight away** instead of filling to the limit, while images the GPU drew into that can't be written back are kept, so effects don't go black.
+
+This should also help the slowdown some players saw over an hour or two, and 8 GB cards. If you still see a slowdown in long sessions, please send your log.
+
+#### 🔧 Other fixes
+
+- The **Play** button on the launch screen is tall enough for its text again.
+- **Linux (test build):** no more "Too many open files", and the updater is Windows-only.
 
 ## v1.6.7.3
 
