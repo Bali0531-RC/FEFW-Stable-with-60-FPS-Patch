@@ -1566,6 +1566,9 @@ void MainWindow::ConnectWidgetEvents() {
             });
     connect(fefw_home, &FefwHome::SettingsRequested, this, &MainWindow::OnConfigure);
     connect(fefw_home, &FefwHome::UpdateCheckRequested, this, &MainWindow::CheckForFefwUpdateNow);
+    connect(fefw_home, &FefwHome::SettingChanged, this, [this] { config->SaveAllValues(); });
+    connect(fefw_home, &FefwHome::PerformanceSettingsRequested, this,
+            [this] { OnConfigurePage(tr("Performance")); });
     connect(game_list, &GameList::SaveConfig, this, &MainWindow::OnSaveConfig);
 
     connect(game_list, &GameList::OpenPerGameGeneralRequested, this,
@@ -3652,6 +3655,10 @@ void MainWindow::ToggleShowGameName() {
 }
 
 void MainWindow::OnConfigure() {
+    OnConfigurePage({});
+}
+
+void MainWindow::OnConfigurePage(const QString& page) {
     const auto old_theme = UISettings::values.theme;
     const bool old_discord_presence = UISettings::values.enable_discord_presence.GetValue();
     const auto old_language_index = Settings::values.language_index.GetValue();
@@ -3668,6 +3675,9 @@ void MainWindow::OnConfigure() {
             &MainWindow::OnLanguageChanged);
     connect(&configure_dialog, &ConfigureDialog::ExternalContentDirsChanged, this,
             &MainWindow::OnGameListRefresh);
+    if (!page.isEmpty()) {
+        configure_dialog.SelectPage(page);
+    }
 
     const auto result = configure_dialog.exec();
     if (result != QDialog::Accepted && !UISettings::values.configuration_applied &&
@@ -4485,9 +4495,14 @@ void MainWindow::UpdateStatusBar() {
                 break;
             }
         }
-        upscaler_label->setText(mode.isEmpty()
-                                    ? QString::fromUtf8(upscaler)
-                                    : QStringLiteral("%1 - %2").arg(QString::fromUtf8(upscaler), mode));
+        QString text = mode.isEmpty()
+                           ? QString::fromUtf8(upscaler)
+                           : QStringLiteral("%1 - %2").arg(QString::fromUtf8(upscaler), mode);
+        // The frame generation making frames now, if any.
+        if (const char* frame_gen = Settings::ActiveFrameGeneration()) {
+            text += tr("  ·  %1 Frame Gen").arg(QString::fromUtf8(frame_gen));
+        }
+        upscaler_label->setText(text);
         upscaler_label->setVisible(true);
     } else {
         upscaler_label->setVisible(false);
@@ -4524,9 +4539,10 @@ void MainWindow::UpdateMouseButton() {
     mouse_status_button->setText(enabled ? tr("Click to turn mouse mode off")
                                          : tr("Click to turn mouse mode on"));
     if (mouse_hint_label != nullptr) {
-        mouse_hint_label->setText(enabled ? tr("Ctrl + Enter to turn mouse mode off  ·  "
-                                               "Right-click to alter sensitivity")
-                                          : tr("Right-click to alter sensitivity"));
+        // The arrow points at the button (the hint itself isn't clickable).
+        mouse_hint_label->setText(enabled ? tr("← Right-click it to alter sensitivity  ·  "
+                                               "Ctrl + Enter to turn mouse mode off")
+                                          : tr("← Right-click it to alter sensitivity"));
     }
 }
 

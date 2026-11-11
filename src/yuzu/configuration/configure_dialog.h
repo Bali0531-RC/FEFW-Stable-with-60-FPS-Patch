@@ -27,6 +27,7 @@ class ConfigureGeneral;
 class ConfigureGraphics;
 class ConfigureGraphicsAdvanced;
 class ConfigureGraphicsExtensions;
+class ConfigurePerformance;
 class ConfigureHotkeys;
 class ConfigureInput;
 class ConfigureProfileManager;
@@ -56,6 +57,8 @@ public:
     ~ConfigureDialog() override;
 
     void ApplyConfiguration();
+    /// Shows the page with this name in the list on the left.
+    void SelectPage(const QString& name);
 
 private slots:
     void OnLanguageChanged(const QString& locale);
@@ -89,6 +92,7 @@ private:
     std::unique_ptr<ConfigureGeneral> general_tab;
     std::unique_ptr<ConfigureGraphicsAdvanced> graphics_advanced_tab;
     std::unique_ptr<ConfigureGraphicsExtensions> graphics_extensions_tab;
+    std::unique_ptr<ConfigurePerformance> performance_tab;
     std::unique_ptr<ConfigureUi> ui_tab;
     std::unique_ptr<ConfigureGraphics> graphics_tab;
     std::unique_ptr<ConfigureHotkeys> hotkeys_tab;

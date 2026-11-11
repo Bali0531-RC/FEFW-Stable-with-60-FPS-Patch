@@ -99,6 +99,7 @@ add_library(video_core STATIC
     native_semaphore.h
     back_thread_stats.cpp
     back_thread_stats.h
+    fefw_load_stats.h
     gpu_split.cpp
     gpu_split.h
     gpu_thread.cpp
@@ -203,6 +204,8 @@ add_library(video_core STATIC
     renderer_vulkan/vk_state_tracker.h
     renderer_vulkan/vk_swapchain.cpp
     renderer_vulkan/vk_swapchain.h
+    renderer_vulkan/vk_fsr3_frame_generator.cpp
+    renderer_vulkan/vk_fsr3_frame_generator.h
     renderer_vulkan/vk_fsr3_upscaler.cpp
     renderer_vulkan/vk_fsr3_upscaler.h
     renderer_vulkan/vk_fsr4_upscaler.cpp

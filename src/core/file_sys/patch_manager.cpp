@@ -7,20 +7,24 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
+#include <span>
 
 #include "common/assert.h"
 #include "common/hex_util.h"
 #include "common/logging.h"
 #include "common/settings.h"
-#ifndef _WIN32
 #include "common/string_util.h"
-#endif
 
 #include "core/core.h"
 #include "core/file_sys/common_funcs.h"
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/control_metadata.h"
+#include "core/file_sys/fefw_60fps_patch.h"
+#include "core/file_sys/fefw_60fps_search.h"
+#include "core/file_sys/fefw_romfs_tweaks.h"
+#include "core/fefw_frame_rate.h"
 #include "core/file_sys/fefw_ultrawide.h"
 #include "core/file_sys/ips_layer.h"
 #include "core/file_sys/patch_manager.h"
@@ -178,6 +182,82 @@ std::string GetUpdateVersionStringFromSlot(const ContentProvider* provider, u64 
 }
 YUZU_NO_INLINE std::optional<u64> GetParentApplicationId(const ContentProvider* provider, u64 title_id) {
     return provider == nullptr ? std::nullopt : provider->GetParentApplicationId(title_id);
+}
+
+// The built-in 60 FPS patch's ranges (IPS32 records, NSO header included) still hold the game's
+// own bytes in `out`: no mod wrote to its sites or to the padding its routines go in.
+bool FefwSixtyRangesUntouched(const std::vector<u8>& original, const std::vector<u8>& out) {
+    const auto& ips = FefwSixtyPatch::Ips;
+    std::size_t at = 5; // "IPS32"
+    while (at + 4 <= ips.size()) {
+        if (ips[at] == 'E' && ips[at + 1] == 'E' && ips[at + 2] == 'O' && ips[at + 3] == 'F') {
+            return true;
+        }
+        if (at + 6 > ips.size()) {
+            return false;
+        }
+        const std::size_t offset = (std::size_t{ips[at]} << 24) | (std::size_t{ips[at + 1]} << 16) |
+                                   (std::size_t{ips[at + 2]} << 8) | ips[at + 3];
+        const std::size_t length = (std::size_t{ips[at + 4]} << 8) | ips[at + 5];
+        at += 6 + length;
+        if (offset + length > original.size() || offset + length > out.size() ||
+            !std::equal(original.begin() + offset, original.begin() + offset + length,
+                        out.begin() + offset)) {
+            return false;
+        }
+    }
+    return false;
+}
+
+void ApplyFefwSixty(const std::vector<u8>& original, std::vector<u8>& out,
+                    const Loader::NSOHeader& header, const std::string& build_id) {
+    const bool reference = build_id == FefwUltrawide::MainBuildId;
+    // EDEN_60FPS_SEARCH=2: place the patch by searching on 1.1.0 too (a test of that path).
+    const char* const search = std::getenv("EDEN_60FPS_SEARCH");
+    const bool force_search = search != nullptr && search[0] == '2';
+    if (reference && !force_search && FefwSixtyRangesUntouched(original, out)) {
+        LOG_INFO(Loader, "    - Applying the built-in 60 FPS patch (60 FPS mode)");
+        const auto sixty = std::make_shared<VectorVfsFile>(
+            std::vector<u8>(FefwSixtyPatch::Ips.begin(), FefwSixtyPatch::Ips.end()), "60fps.ips");
+        if (const auto patched = PatchIPS(std::make_shared<VectorVfsFile>(out), sixty)) {
+            out = patched->ReadAllBytes();
+            FefwFrameRate::SetFoundLayout(build_id, 0x21E60D8, 0x22B3E00);
+        } else {
+            LOG_ERROR(Loader, "    - The built-in 60 FPS patch could not be applied");
+        }
+        return;
+    }
+    // Another version, or 1.1.0 with a mod in the patch's usual space: find every spot again
+    // and put the routines in whatever padding is still free.
+    std::string why;
+    const std::span<u8> image(out.data() + sizeof(Loader::NSOHeader),
+                              out.size() - sizeof(Loader::NSOHeader));
+    if (const auto layout = FefwSixtySearch::Apply(image, header.segments[0].size, why)) {
+        FefwFrameRate::SetFoundLayout(build_id, layout->app_object, layout->table);
+        if (reference) {
+            LOG_INFO(Loader,
+                     "    - Applying the built-in 60 FPS patch (60 FPS mode), routines moved to "
+                     "{:#x}: a mod uses the space they usually go in",
+                     layout->routines);
+        } else {
+            LOG_WARNING(Loader,
+                        "    - 60 FPS mode on a game version it wasn't made for (build {}): all "
+                        "the code it changes was found as in 1.1.0, so it is applied (routines "
+                        "at {:#x}). Untested on this version: if anything looks wrong, turn 60 "
+                        "FPS mode off.",
+                        build_id, layout->routines);
+        }
+    } else if (reference) {
+        LOG_WARNING(Loader,
+                    "    - 60 FPS mode is off: a mod changes the same game code or fills the free "
+                    "space its routines need ({}). Turn that mod or 60 FPS mode off.",
+                    why);
+    } else {
+        LOG_WARNING(Loader,
+                    "    - 60 FPS mode is off: it was made for game version 1.1.0, and this "
+                    "version's code differs ({}). The game runs at 30 FPS as usual.",
+                    why);
+    }
 }
 } // Anonymous namespace
 
@@ -509,6 +589,28 @@ std::vector<u8> PatchManager::PatchNSO(const std::vector<u8>& nso, const std::st
         }
     }
 
+    // 60 FPS mode, after the mods: its routines go only where no mod wrote, and its sites only
+    // where no mod changed the game's instruction. If a mod needs the same space, 60 FPS mode
+    // stays off (the mod still applies), rather than leaving branches into the mod's code.
+    if (name == "main" && title_id == FefwRomfsTweaks::TitleId) {
+        FefwFrameRate::SetFoundLayout({}, 0, 0);
+        if (FefwSixtyEnabled() && out.size() > sizeof(Loader::NSOHeader)) {
+            ApplyFefwSixty(nso, out, header, build_id);
+        }
+        if (const char* value = std::getenv("EDEN_60FPS_SEARCH");
+            value && value[0] != '0' && build_id == FefwUltrawide::MainBuildId) {
+            // A check of the search on 1.1.0 (nothing is changed by it).
+            std::string why;
+            const std::span<const u8> image(nso.data() + sizeof(Loader::NSOHeader),
+                                            nso.size() - sizeof(Loader::NSOHeader));
+            if (FefwSixtySearch::MatchesReference(image, header.segments[0].size, why)) {
+                LOG_INFO(Loader, "    - 60 FPS search check: every spot found at 1.1.0's address");
+            } else {
+                LOG_ERROR(Loader, "    - 60 FPS search check failed: {}", why);
+            }
+        }
+    }
+
     if (out.size() < sizeof(Loader::NSOHeader)) {
         return nso;
     }
@@ -526,6 +628,10 @@ bool PatchManager::HasNSOPatch(const BuildID& build_id_, std::string_view name) 
     if (build_id == FefwUltrawide::MainBuildId) {
         return true;
     }
+    // 60 FPS mode on other game versions (PatchNSO decides whether it can be applied).
+    if (name == "main" && FefwSixtyEnabled()) {
+        return true;
+    }
 
     const auto load_dir = GetModificationLoadRoot();
     if (load_dir == nullptr) {
@@ -540,6 +646,27 @@ bool PatchManager::HasNSOPatch(const BuildID& build_id_, std::string_view name) 
     return !CollectPatches(patch_dirs, build_id).empty();
 }
 
+bool PatchManager::FefwSixtyEnabled() const {
+    if (title_id != FefwRomfsTweaks::TitleId) {
+        return false;
+    }
+    if (Settings::values.fefw_60fps.GetValue()) {
+        return true;
+    }
+    const auto load_dir = GetModificationLoadRoot();
+    if (load_dir == nullptr) {
+        return false;
+    }
+    const auto disabled = GetDisabledAddons();
+    for (const auto& subdir : load_dir->GetSubdirectories()) {
+        if (Common::ToLower(subdir->GetName()) == "60fps" &&
+            std::find(disabled.cbegin(), disabled.cend(), subdir->GetName()) == disabled.cend()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::vector<Core::Memory::CheatEntry> PatchManager::CreateCheatList(const BuildID& build_id_) const {
     const auto load_dir = GetModificationLoadRoot();
     if (load_dir == nullptr) {
@@ -551,10 +678,19 @@ std::vector<Core::Memory::CheatEntry> PatchManager::CreateCheatList(const BuildI
     auto patch_dirs = load_dir->GetSubdirectories();
     std::sort(patch_dirs.begin(), patch_dirs.end(), [](auto const& l, auto const& r) { return l->GetName() < r->GetName(); });
 
+    // Fortune's Weave 1.1.0: the "60fps" add-on turns on Fortune's Eden's 60 FPS mode instead of
+    // running its cheat (a fixed rate of 60 made everything slow motion below 60 FPS).
+    const bool fefw_main = title_id == FefwRomfsTweaks::TitleId &&
+                           FefwFrameRate::KnowsBuild(Common::HexToString(build_id_));
+    const bool fefw_60fps = fefw_main && FefwSixtyEnabled();
+
     // <mod dir> / <folder> / cheats / <build id>.txt
     std::vector<Core::Memory::CheatEntry> out;
     for (const auto& subdir : patch_dirs) {
         if (std::find(disabled.cbegin(), disabled.cend(), subdir->GetName()) == disabled.cend()) {
+            if (fefw_main && Common::ToLower(subdir->GetName()) == "60fps") {
+                continue;
+            }
             if (auto cheats_dir = FindSubdirectoryCaseless(subdir, "cheats"); cheats_dir != nullptr) {
                 // Upper-case name first, then lower-case, but not both: Windows finds the same
                 // file either way, and loading it twice ran every cheat twice per frame (button
@@ -584,15 +720,22 @@ std::vector<Core::Memory::CheatEntry> PatchManager::CreateCheatList(const BuildI
             }
         }
     }
+    if (fefw_main) {
+        FefwFrameRate::SetEnabled(fefw_60fps);
+    }
     return out;
 }
 
 void PatchManager::ApplyLayeredFS(VirtualFile& romfs, ContentRecordType type) const {
     const auto load_dir = GetModificationLoadRoot();
     const auto sdmc_load_dir = GetModificationLoadRoot(true);
+    // Fortune's Eden's performance settings for Fortune's Weave change some of its graphics
+    // settings files (fefw_romfs_tweaks.cpp), on top of any mods.
+    const bool fefw_tweaks = type == ContentRecordType::Program &&
+                             title_id == FefwRomfsTweaks::TitleId && FefwRomfsTweaks::Any();
     if ((type != ContentRecordType::Program && type != ContentRecordType::Data &&
          type != ContentRecordType::HtmlDocument) ||
-        (load_dir == nullptr && sdmc_load_dir == nullptr)) {
+        (load_dir == nullptr && sdmc_load_dir == nullptr && !fefw_tweaks)) {
         return;
     }
 
@@ -638,7 +781,7 @@ void PatchManager::ApplyLayeredFS(VirtualFile& romfs, ContentRecordType type) co
     }
 
     // When there are no layers to apply, return early as there is no need to rebuild the RomFS
-    if (layers.empty() && layers_ext.empty()) {
+    if (layers.empty() && layers_ext.empty() && !fefw_tweaks) {
         return;
     }
 
@@ -650,6 +793,11 @@ void PatchManager::ApplyLayeredFS(VirtualFile& romfs, ContentRecordType type) co
     layers.emplace_back(std::move(extracted));
 
     auto layered = LayeredVfsDirectory::MakeLayeredDirectory(std::move(layers));
+    if (fefw_tweaks && layered != nullptr) {
+        if (auto tweaked = FefwRomfsTweaks::Build(layered); tweaked != nullptr) {
+            layered = LayeredVfsDirectory::MakeLayeredDirectory({std::move(tweaked), layered});
+        }
+    }
     auto layered_ext = LayeredVfsDirectory::MakeLayeredDirectory(std::move(layers_ext));
     if (layered == nullptr && layered_ext == nullptr) {
         return;

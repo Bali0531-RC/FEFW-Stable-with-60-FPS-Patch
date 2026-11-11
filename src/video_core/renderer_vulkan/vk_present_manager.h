@@ -7,6 +7,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <boost/container/deque.hpp>
@@ -38,6 +39,13 @@ struct Frame {
     vk::Semaphore render_ready;
     vk::Fence present_done;
     bool storage_capable{};
+    /// Frame generation's pacing: present no sooner than this after the previous frame.
+    std::chrono::nanoseconds present_delay{};
+    /// NVIDIA DLSS frame generation: the present is marked with this frame index, and runs
+    /// frame generation when the frame's inputs were tagged.
+    bool sl_frame_gen{};
+    bool sl_tagged{};
+    u64 sl_index{};
 };
 
 class PresentManager {
@@ -85,6 +93,12 @@ private:
 
     void SetImageCount();
 
+    /// Copies to the swapchain and presents, with DLSS frame generation's present markers.
+    void PresentMarked(Frame* frame);
+
+    /// Waits out frame->present_delay after the previous present.
+    void Pace(const Frame* frame);
+
 private:
     const vk::Instance& instance;
     Core::Frontend::EmuWindow& render_window;
@@ -109,6 +123,7 @@ private:
     std::atomic<std::size_t> image_count{};
     std::atomic<std::size_t> swapchain_image_count{};
     std::atomic<VkFormat> swapchain_image_format{};
+    std::chrono::steady_clock::time_point last_present{};
 };
 
 } // namespace Vulkan

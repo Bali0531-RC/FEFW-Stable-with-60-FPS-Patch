@@ -23,6 +23,7 @@
 #include "common/settings.h"
 
 #include "video_core/renderer_vulkan/vk_texture_cache.h"
+#include "video_core/fefw_load_stats.h"
 #include "video_core/gpu_logging/gpu_logging.h"
 
 #include "video_core/engines/fermi_2d.h"
@@ -37,6 +38,7 @@
 #include "video_core/texture_cache/samples_helper.h"
 #include "video_core/texture_cache/util.h"
 #include "video_core/vulkan_common/vulkan_device.h"
+#include "video_core/vulkan_common/vma.h"
 #include "video_core/vulkan_common/vulkan_memory_allocator.h"
 #include "video_core/vulkan_common/vulkan_wrapper.h"
 #include "video_core/textures/decoders.h"
@@ -1376,24 +1378,85 @@ bool TextureCacheRuntime::TemporalUpscale(Framebuffer* dst_framebuffer, ImageVie
     }
     // The chosen upscaler; AMD FSR 3.1 when NVIDIA DLSS or FSR 4 can't run.
     const Settings::Upscaler choice = Settings::values.upscaler.GetValue();
+    bool upscaled = false;
     if (choice == Settings::Upscaler::Fsr4) {
         if (Fsr4Upscale(dst_framebuffer, dst, input_color, motion_vectors, depth, render_size,
                         jitter, motion_scale)) {
             Settings::SetActiveUpscaler("AMD FSR 4");
-            return true;
+            upscaled = true;
         }
     } else if (choice == Settings::Upscaler::NvidiaDlss &&
                NvidiaDlssUpscale(dst_framebuffer, dst, input_color, motion_vectors, depth,
                                  render_size, jitter, motion_scale)) {
         Settings::SetActiveUpscaler("NVIDIA DLSS");
-        return true;
+        upscaled = true;
     }
-    if (Fsr3Upscale(dst_framebuffer, input_color, motion_vectors, depth, render_size, jitter,
-                    motion_scale)) {
+    if (!upscaled && Fsr3Upscale(dst_framebuffer, input_color, motion_vectors, depth, render_size,
+                                 jitter, motion_scale)) {
         Settings::SetActiveUpscaler("AMD FSR 3.1");
-        return true;
+        upscaled = true;
     }
-    return false;
+    // Frame generation takes this frame's motion and depth now, while they are the game's.
+    if (upscaled) {
+        if (Fsr3FrameGenerator* const generator = FrameGenerator()) {
+            generator->Prepare(
+                {
+                    .depth = depth.DepthView(),
+                    .motion_vectors = motion_vectors.Handle(Shader::TextureType::Color2D),
+                    .render_size = {render_size[0], render_size[1]},
+                    .jitter = jitter,
+                    .motion_vector_scale = motion_scale,
+                },
+                frame_generator_seq);
+        }
+    }
+    return upscaled;
+}
+
+void TextureCacheRuntime::FrameGenStashUi(Image* ui_layer, u64 seq) {
+    Fsr3FrameGenerator* const generator = FrameGenerator();
+    if (!generator) {
+        return;
+    }
+    if (!ui_layer) {
+        generator->StashUi(VK_NULL_HANDLE, VK_FORMAT_UNDEFINED, {}, seq);
+        return;
+    }
+    u32 width = ui_layer->info.size.width;
+    u32 height = ui_layer->info.size.height;
+    if (ui_layer->IsRescaled()) {
+        width = Settings::values.resolution_info.ScaleUp(width);
+        height = Settings::values.resolution_info.ScaleUp(height);
+    }
+    const VkFormat format =
+        MaxwellToVK::SurfaceFormat(device, FormatType::Optimal, true, ui_layer->info.format).format;
+    generator->StashUi(ui_layer->Handle(), format, {width, height}, seq);
+}
+
+Fsr3FrameGenerator* TextureCacheRuntime::FrameGenerator() {
+    if (Settings::values.frame_generation.GetValue() == Settings::FrameGeneration::Off ||
+        frame_generator_unsupported) {
+        return nullptr;
+    }
+    if (!frame_generator) {
+        if (!Fsr3FrameGenerator::IsSupported(device)) {
+            LOG_WARNING(Render_Vulkan,
+                        "AMD FSR 3.1 frame generation needs formats or features this device lacks");
+            frame_generator_unsupported = true;
+            return nullptr;
+        }
+        try {
+            frame_generator = std::make_unique<Fsr3FrameGenerator>(
+                device, scheduler, memory_allocator, staging_buffer_pool, descriptor_pool,
+                compute_pass_descriptor_queue);
+        } catch (const vk::Exception& exception) {
+            LOG_ERROR(Render_Vulkan, "AMD FSR 3.1 frame generation failed to start ({})",
+                      exception.what());
+            frame_generator_unsupported = true;
+            return nullptr;
+        }
+    }
+    return frame_generator.get();
 }
 
 // AMD FidelityFX Super Resolution 3.1 (externals/FidelityFX-SDK, MIT), the base replacement for
@@ -1481,6 +1544,11 @@ bool TextureCacheRuntime::NvidiaDlssUpscale(Framebuffer* dst_framebuffer, ImageV
     if (dlss_retry_at && now < *dlss_retry_at) {
         return false;
     }
+    if (dlss_retry_at && memory_allocator.IsDeviceLocalOverBudget()) {
+        // DLSS failed for lack of video memory and there still isn't any: look again later.
+        dlss_retry_at = now + std::chrono::seconds{30};
+        return false;
+    }
     if (!dlss_upscaler) {
         // Off in the settings, or Streamline didn't start: it has said why.
         if (!Streamline::IsDlssAvailable()) {
@@ -1550,6 +1618,16 @@ bool TextureCacheRuntime::NvidiaDlssUpscale(Framebuffer* dst_framebuffer, ImageV
         dlss_upscaler.reset();
         dlss_last_evaluation.reset();
         constexpr u32 MaxFailures = 3;
+        if (memory_allocator.IsDeviceLocalOverBudget()) {
+            // Out of video memory (Streamline: "Exceeded VRAM budget"): not DLSS's own fault, so
+            // it doesn't count towards giving up on it. Tried again once memory is back under
+            // the budget (#31: a 2-hour session on an 8 GB card ended on FSR for good).
+            LOG_WARNING(Render_Vulkan,
+                        "NVIDIA DLSS failed with video memory over budget; AMD FSR 3.1 stands in "
+                        "until there is room again");
+            dlss_retry_at = now + std::chrono::seconds{30};
+            return false;
+        }
         if (++dlss_failures >= MaxFailures) {
             LOG_WARNING(Render_Vulkan,
                         "NVIDIA DLSS failed {} times; AMD FSR 3.1 runs for the rest of the session",
@@ -2206,7 +2284,7 @@ u64 TextureCacheRuntime::GetDeviceLocalMemory() const {
 }
 
 u64 TextureCacheRuntime::GetDeviceMemoryUsage() const {
-    return device.GetDeviceMemoryUsage();
+    return device.GetDeviceMemoryInUse();
 }
 
 bool TextureCacheRuntime::CanDownloadMsaa(const VideoCommon::ImageInfo& info) const {
@@ -2291,6 +2369,35 @@ void TextureCacheRuntime::TickFrame() {
     std::erase_if(pending_resolve_shadows, [this](const auto& pending) {
         return scheduler.IsFree(pending.first);
     });
+
+    // Diagnostics, about every five minutes: where the video
+    // memory the driver reports goes. VMA blocks hold every image and buffer allocation (the
+    // gap between block and allocation bytes is free space inside blocks); what the driver
+    // reports beyond the blocks is memory allocated outside VMA (swapchain, upscalers, driver).
+    if (++diagnostics_frame % 18000 == 0) {
+        VmaTotalStatistics stats{};
+        vmaCalculateStatistics(device.GetAllocator(), &stats);
+        const auto& total = stats.total.statistics;
+        const u64 reported = device.GetDeviceMemoryUsage();
+        const auto held = staging_buffer_pool.HeldBytes();
+        LOG_INFO(Render_Vulkan,
+                 "Video memory by kind: images {} MiB in {}, buffers {} MiB in {}; staging "
+                 "buffers kept for reuse {} entries: device-local {} MiB, upload {} MiB, "
+                 "download {} MiB",
+                 vk::live_image_bytes.load() >> 20, vk::live_image_count.load(),
+                 vk::live_buffer_bytes.load() >> 20, vk::live_buffer_count.load(), held.count,
+                 held.device_local >> 20, held.upload >> 20, held.download >> 20);
+        LOG_INFO(Render_Vulkan,
+                 "Video memory breakdown: driver reports {} MiB; VMA {} blocks {} MiB, {} "
+                 "allocations {} MiB (largest {} MiB); outside VMA about {} MiB; ASTC scratch "
+                 "kept {} MiB in {} images; MSAA scratch {} images",
+                 reported >> 20, total.blockCount, total.blockBytes >> 20,
+                 total.allocationCount, total.allocationBytes >> 20,
+                 stats.total.allocationSizeMax >> 20,
+                 (reported > total.blockBytes ? reported - total.blockBytes : 0) >> 20,
+                 free_transcode_bytes >> 20, free_transcodes.size(),
+                 msaa_scratch_images.size());
+    }
 }
 
 Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu_addr_,
@@ -3630,6 +3737,7 @@ void TextureCacheRuntime::TranscodeAstcToBcn(
     const u32 height = info.size.height;
     const u32 levels = static_cast<u32>(info.resources.levels);
     const u32 layers = static_cast<u32>(info.resources.layers);
+    FefwLoadStats::Add(FefwLoadStats::Get().astc_textures);
     constexpr VkFormat DecodeFormat = VK_FORMAT_A8B8G8R8_UNORM_PACK32;
     // A decode image of the same shape the GPU is done with: many textures share a few shapes,
     // and making an image each time cost more than the decode.
@@ -3666,6 +3774,7 @@ void TextureCacheRuntime::TranscodeAstcToBcn(
                 pending_transcodes.front().tick >= scheduler.CurrentTick()) {
                 break;
             }
+            FefwLoadStats::Add(FefwLoadStats::Get().astc_waits);
             static u32 waits_logged = 0;
             if (waits_logged < 20) {
                 ++waits_logged;

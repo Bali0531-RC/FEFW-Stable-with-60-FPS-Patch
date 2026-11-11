@@ -4,7 +4,12 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <thread>
+
 #include "common/settings.h"
+#ifdef EGLANTINE_STREAMLINE
+#include "video_core/vulkan_common/streamline.h"
+#endif
 #include "common/thread.h"
 #include "core/frontend/emu_window.h"
 #ifdef HAS_LSFG
@@ -28,13 +33,10 @@ constexpr u32 MAX_PRESENT_ATTEMPTS = 3;
 static_assert(MAX_FRAMES_IN_FLIGHT <= LSFG_MAX_TARGETS);
 #endif
 
+// Frame generation (Lossless Scaling on Android, AMD FSR 3.1) writes frames through storage views.
 bool CanStoreToFrame(const vk::PhysicalDevice& physical_device, VkFormat format) {
-#ifdef HAS_LSFG
     const VkFormatProperties props{physical_device.GetFormatProperties(format)};
     return (props.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) != 0;
-#else
-    return false;
-#endif
 }
 
 bool CanBlitToSwapchain(const vk::PhysicalDevice& physical_device, VkFormat format) {
@@ -129,7 +131,10 @@ PresentManager::PresentManager(const vk::Instance& instance_,
     , surface{surface_}
     , blit_supported{CanBlitToSwapchain(device.GetPhysical(), swapchain.GetImageViewFormat())}
     , storage_supported{CanStoreToFrame(device.GetPhysical(), swapchain.GetImageFormat())}
-    , use_present_thread{Settings::values.async_presentation.GetValue()}
+    // Frame generation paces its frames on the present thread: without one, the waits ran on the
+    // GPU thread and slowed the game wherever its frames took longer (battles: 60 FPS to 40).
+    , use_present_thread{Settings::values.async_presentation.GetValue() ||
+                         Settings::values.frame_generation.GetValue() != Settings::FrameGeneration::Off}
 {
     SetImageCount();
 
@@ -194,9 +199,40 @@ void PresentManager::Present(Frame* frame) {
             frame_cv.notify_one();
         });
     } else {
+        // (No pacing here: waiting on this thread holds up the emulated GPU.)
         scheduler.WaitWorker();
-        CopyToSwapchain(frame);
+        PresentMarked(frame);
+        last_present = std::chrono::steady_clock::now();
         free_queue.push_back(frame);
+    }
+}
+
+void PresentManager::PresentMarked(Frame* frame) {
+#ifdef EGLANTINE_STREAMLINE
+    if (frame->sl_frame_gen) {
+        Streamline::FrameGenPresentStart(frame->sl_index, frame->sl_tagged);
+        CopyToSwapchain(frame);
+        Streamline::FrameGenPresentEnd(frame->sl_index, frame->sl_tagged);
+        return;
+    }
+#endif
+    CopyToSwapchain(frame);
+}
+
+void PresentManager::Pace(const Frame* frame) {
+    if (frame->present_delay.count() <= 0) {
+        return;
+    }
+    // Sleep to a little before the time (a sleep can overrun by a millisecond or more), then
+    // yield until it.
+    using Clock = std::chrono::steady_clock;
+    const Clock::time_point target = last_present + frame->present_delay;
+    const Clock::time_point coarse = target - std::chrono::microseconds{1500};
+    if (Clock::now() < coarse) {
+        std::this_thread::sleep_until(coarse);
+    }
+    while (Clock::now() < target) {
+        std::this_thread::yield();
     }
 }
 
@@ -345,7 +381,9 @@ void PresentManager::PresentThread(std::stop_token token) {
             // before the queue lock goes out of scope. This way the swapchain
             // lock in WaitPresent is guaranteed to occur after here.
             void(std::exchange(lock, std::unique_lock{swapchain_mutex}));
-            CopyToSwapchain(frame);
+            Pace(frame);
+            PresentMarked(frame);
+            last_present = std::chrono::steady_clock::now();
 
             // Free the frame for reuse
             std::scoped_lock fl{free_mutex};
@@ -371,7 +409,10 @@ void PresentManager::SetImageCount() {
         std::clamp<size_t>((generations + 1) * queued_composites, swapchain.GetImageCount(),
                            MAX_FRAMES_IN_FLIGHT);
 #else
-    image_count = std::min<size_t>(swapchain.GetImageCount(), MAX_FRAMES_IN_FLIGHT);
+    // AMD FSR 3.1 frame generation presents two frames per game frame: two more to render into,
+    // so the emulated GPU doesn't wait for the presentation.
+    const size_t extra = Settings::values.frame_generation.GetValue() != Settings::FrameGeneration::Off ? 2 : 0;
+    image_count = std::min<size_t>(swapchain.GetImageCount() + extra, MAX_FRAMES_IN_FLIGHT);
 #endif
     swapchain_image_count = swapchain.GetImageCount();
     swapchain_image_format = swapchain.GetImageFormat();

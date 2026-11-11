@@ -7,11 +7,13 @@
 #pragma once
 
 #include <array>
+#include <utility>
 #include <atomic>
 #include <deque>
 #include <limits>
 #include <mutex>
 #include <span>
+#include <string>
 #include <type_traits>
 // TODO: find out which don't require stable iters
 #include <unordered_map>
@@ -502,6 +504,66 @@ private:
 
     RenderTargets render_targets;
     u64 render_targets_serial = 0;
+
+    // Testing (EDEN_FG_TRACE=1): one frame's draws after the DLSS evaluation, by render target,
+    // to find where the game starts drawing its UI.
+    void TraceRenderTargets();
+
+public:
+    /// Frame generation: the game's UI layer this frame (Fortune's Weave draws its UI into its own
+    /// full-size RGBA8 image right after the DLSS evaluation, and combines it with the 3D picture
+    /// at the end), or null.
+    [[nodiscard]] std::array<ImageView*, 4> FrameGenUiLayers();
+
+    /// Frame generation: which of the game's frames is being presented (the frame's buffer is at
+    /// the given device address). The game may already be drawing its next frame when the
+    /// previous one is presented; that frame's UI layer is then gone (the stash has it).
+    struct FrameGenFrameInfo {
+        u64 seq;      ///< The frame's DLSS evaluation (1, 2, ...); 0 for none.
+        bool known;   ///< Its buffer was seen being drawn after an evaluation.
+        bool previous; ///< The game already evaluated DLSS for its next frame.
+        std::array<ImageView*, 4> layers; ///< The UI layers (null when previous).
+    };
+    [[nodiscard]] FrameGenFrameInfo FrameGenFrame(DAddr presented, u32 width, u32 height);
+
+private:
+    void WatchUiLayer();
+    [[nodiscard]] std::array<ImageId, 4> FrameGenUiLayerIds();
+    /// DLSS evaluations so far (each starts a frame).
+    u64 fg_seq = 0;
+    /// Presented buffers and the frame last drawn into each. Only draws to an image of the
+    /// buffer's own size count: Fortune's Weave also uses the buffers' memory as a smaller
+    /// scratch target (2560x1440 in a 3840x2160 buffer) right after each DLSS evaluation, while
+    /// the buffer still holds a frame two evaluations old waiting to be presented.
+    struct PresentMark {
+        DAddr address;
+        u32 width;
+        u32 height;
+        u64 seq;
+    };
+    std::array<PresentMark, 4> fg_present_marks{};
+    size_t fg_present_next = 0;
+    /// The last frame whose UI layer was copied.
+    u64 fg_ui_copied = 0;
+    /// Testing (EDEN_FG_TRACE=1): frame order events around 30 s in.
+    [[nodiscard]] bool FrameGenOrderTrace() const;
+    void FrameGenCopyUi();
+    bool fg_ui_watch = false;     ///< Counting draws (the game evaluated DLSS last frame or this).
+    bool fg_ui_dlss_seen = false; ///< DLSS evaluated this frame.
+    ImageId fg_ui_exclude{};
+    Extent3D fg_ui_size{};
+    /// Full-size 8-bit colour targets drawn this frame and how many draws each got.
+    std::array<std::pair<ImageId, u32>, 8> fg_ui_counts{};
+    size_t fg_ui_count_size = 0;
+    /// The last frame's most drawn UI layer: frames that don't redraw the UI keep showing it.
+    ImageId fg_ui_last{};
+    GPUVAddr fg_ui_last_addr = 0;
+    void FlushRenderTargetTrace();
+    bool fg_trace_active = false;
+    bool fg_trace_done = false;
+    std::string fg_trace_last;
+    u32 fg_trace_count = 0;
+    u32 fg_trace_lines = 0;
     u32 rt_active_mask = 0;
     std::array<ImageId, 8> rt_image_id{};
     ImageId rt_depth_image_id{};
@@ -588,6 +650,9 @@ private:
 #endif
     DelayedDestructionRing<Image, TICKS_TO_DESTROY> sentenced_images;
     u64 memory_limit = ~0ULL;        ///< Video memory the emulator may use
+    /// Bytes freed by recent cleanup passes (frame, bytes): images are destroyed, and stop
+    /// counting in the memory in use, TICKS_TO_DESTROY frames after a pass frees them.
+    std::array<std::pair<u64, u64>, 16> recent_frees{};
     u64 collect_quiet_until = 0;     ///< No cleanup pass before this frame unless over the limit
     u64 texture_memory_estimate = 0; ///< Bytes of the cached images (diagnostics)
     u32 minute_passes = 0;           ///< Cleanup since the last "Video memory in use" report

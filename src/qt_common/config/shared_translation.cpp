@@ -55,6 +55,10 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
     INSERT(Settings, audio_output_device_id, tr("Output Device:"), QString());
     INSERT(Settings, audio_input_device_id, tr("Input Device:"), QString());
     INSERT(Settings, audio_muted, tr("Mute audio"), QString());
+    INSERT(Settings, audio_buffer, tr("Audio buffer:"),
+           tr("How much sound is queued ahead of your speakers. If the sound crackles or pops, "
+              "try Medium or High: they ride out short hitches, with a little more delay.\n"
+              "Takes effect when the game starts."));
     INSERT(Settings, volume, tr("Volume:"), QString());
     INSERT(Settings, dump_audio_commands, QString(), QString());
     INSERT(UISettings, mute_when_in_background, tr("Mute audio when in background"), QString());
@@ -153,10 +157,34 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
               "the HUD, menus and movies centred at 16:9, and stretches the picture to the window. "
               "For 21:9 monitors only; play fullscreen.\nOnly for game version 1.1.0. Takes effect "
               "when the game starts."));
+    INSERT(Settings, fefw_60fps, tr("60 FPS mode"),
+           tr("Fortune's Weave runs at up to 60 FPS instead of 30. Game speed follows your real "
+              "frame rate, so it stays correct anywhere between 30 and 60 FPS.\nMade for game version "
+              "1.1.0; on other versions it turns on only if the game's code matches, and is "
+              "untested there. Takes effect when the game starts."));
+    INSERT(Settings, fefw_reflections, tr("Reflections:"),
+           tr("Screen-space reflections in the hubs, which trace 32 rays per pixel. Reduced traces "
+              "8 (a little grainier), Off removes them. Can raise FPS in the hubs on slower GPUs.\n"
+              "Takes effect when the game starts."));
+    INSERT(Settings, fefw_ambient_occlusion, tr("Ambient occlusion"),
+           tr("The soft shading in corners and creases (SSAO). Turning it off saves some GPU time "
+              "everywhere, with flatter lighting. Takes effect when the game starts."));
+    INSERT(Settings, fefw_reduced_crowd_detail, tr("Reduced crowd detail"),
+           tr("Crowd characters switch to their simpler models twice as soon, which lightens busy "
+              "towns and battles. Takes effect when the game starts."));
+    INSERT(Settings, fefw_reduced_scenery_detail, tr("Reduced scenery detail"),
+           tr("Buildings and scenery switch to their simpler models sooner (at 60% of the "
+              "distance), and the farthest scenery is hidden sooner. Fewer objects to draw, which "
+              "helps slower CPUs most, and GPUs too. Takes effect when the game starts."));
     INSERT(Settings, fefw_mouse_sensitivity, tr("Mouse sensitivity (mouse mode):"),
            tr("How fast the mouse moves the cursor in Fortune's Weave's mouse controls "
               "(Options > Controls > Mouse Controls), from 1 to 20. Turn mouse mode on with the "
               "button at the bottom of the window (Ctrl + Enter turns it off)."));
+    INSERT(Settings, hdr_paper_white, tr("HDR paper white (nits):"),
+           tr("How bright the game's HDR picture treats white paper and the menus. 250, the default, "
+              "suits a 1000-nit HDR display; 203 is the HDR standard's reference. Raise it if the "
+              "picture looks darker than SDR, lower it if the menus are too bright. Only with HDR "
+              "output on. Takes effect when the game starts."));
     INSERT(Settings, hdr_output, tr("HDR output (HDR10)"),
            tr("Shows the game in HDR on an HDR display. Turn on HDR in Windows first (Settings > "
               "Display > Use HDR).\nFire Emblem: Fortune's Weave then makes its own HDR picture: "
@@ -180,6 +208,15 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
               "size. Applies at 1X resolution with AMD FSR 3.1, NVIDIA DLSS or AMD FSR 4; other "
               "resolutions and the game's own DLSS use Performance. Takes effect when a game "
               "starts."));
+    INSERT(Settings, frame_generation, tr("Frame generation:"),
+           tr("Makes a frame between each two of the game's, so 60 FPS shows as 120 (or 30 as "
+              "60). Only in the 3D scenes: it uses the game's own motion data, which menus and "
+              "movies don't have. Needs a display faster than the game's frame rate (120 Hz or "
+              "more for 60 FPS). Works with any upscaler.\nAMD FSR 3.1: any graphics card.\n"
+              "NVIDIA DLSS: GeForce RTX 40 and 50 cards, with NVIDIA Streamline's DLLs "
+              "(sl.interposer.dll, sl.common.dll, sl.dlss_g.dll, sl.reflex.dll, sl.pcl.dll) and "
+              "nvngx_dlssg.dll in the user folder's streamline folder; AMD's is used where it "
+              "can't run.\nTakes effect when a game starts. Experimental."));
     INSERT(Settings, anti_aliasing, tr("Anti-Aliasing Method:"),
            tr("The anti-aliasing method to use.\nSMAA offers the best quality.\nFXAA "
               "can produce a more stable picture in lower resolutions."));
@@ -452,6 +489,25 @@ std::unique_ptr<ComboboxTranslationMap> ComboboxEnumeration(QObject* parent) {
                               PAIR(UpscalerQuality, Quality, tr("Quality")),
                               PAIR(UpscalerQuality, Balanced, tr("Balanced")),
                               PAIR(UpscalerQuality, Performance, tr("Performance")),
+                          }});
+    translations->insert({Settings::EnumMetadata<Settings::FrameGeneration>::Index(),
+                          {
+                              PAIR(FrameGeneration, Off, tr("Off")),
+                              PAIR(FrameGeneration, AmdFsr3, tr("AMD FSR 3.1 (any card)")),
+                              PAIR(FrameGeneration, NvidiaDlss,
+                                   tr("NVIDIA DLSS (GeForce RTX 40/50)")),
+                          }});
+    translations->insert({Settings::EnumMetadata<Settings::AudioBuffer>::Index(),
+                          {
+                              PAIR(AudioBuffer, Low, tr("Low (least delay)")),
+                              PAIR(AudioBuffer, Medium, tr("Medium")),
+                              PAIR(AudioBuffer, High, tr("High (fewest crackles)")),
+                          }});
+    translations->insert({Settings::EnumMetadata<Settings::FefwReflections>::Index(),
+                          {
+                              PAIR(FefwReflections, Full, tr("Full (the game's own)")),
+                              PAIR(FefwReflections, Reduced, tr("Reduced (8 rays)")),
+                              PAIR(FefwReflections, Off, tr("Off")),
                           }});
     translations->insert({Settings::EnumMetadata<Settings::VramUsageMode>::Index(),
                           {

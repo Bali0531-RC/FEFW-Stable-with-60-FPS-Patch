@@ -212,6 +212,11 @@ struct Values {
                                        Specialization::Scalar | Specialization::Percentage,
                                        true,
                                        true};
+    // Fortune's Eden: sound queued ahead of the device. Low is about 40 ms (as before: 6 x 5 ms
+    // buffers and a 10 ms device buffer), Medium about 80 ms and High about 160 ms; more rides
+    // out hitches without crackling (issue #29), with more delay.
+    SwitchableSetting<AudioBuffer> audio_buffer{linkage, AudioBuffer::Low, "audio_buffer",
+                                                Category::Audio};
     Setting<bool, false> audio_muted{
                                      linkage, false, "audio_muted", Category::Audio, Specialization::Default, true, true};
     Setting<bool, false> dump_audio_commands{
@@ -406,13 +411,54 @@ struct Values {
     // the game's own DLSS stay at Performance. Takes effect when a game starts.
     SwitchableSetting<UpscalerQuality, true> upscaler_quality{
         linkage, UpscalerQuality::Balanced, "upscaler_quality", Category::Renderer};
+    // Frame generation: a frame made between each two of the game's, from its motion (the DLSS
+    // evaluation's motion vectors and depth) and its UI layer. Off, AMD FSR 3.1's (frame
+    // interpolation and optical flow, any card) or NVIDIA DLSS's (through NVIDIA Streamline,
+    // from the user's DLLs; GeForce RTX 40 and 50), which falls back to AMD's where it can't
+    // run. Only in the 3D scenes, where the game evaluates DLSS. Takes effect when a game starts.
+    SwitchableSetting<FrameGeneration, true> frame_generation{
+        linkage, FrameGeneration::Off, "frame_generation", Category::Renderer};
     // HDR10 output: the window uses an HDR10 (PQ) swapchain when Windows HDR is on, and Switch 2
     // games are told the display is HDR, so they send their own HDR picture. Takes effect when a
     // game starts.
     SwitchableSetting<bool> hdr_output{linkage, false, "hdr_output", Category::Renderer};
+    // The HDR reference ("paper") white, in nits, told to a game that asks the display for it
+    // (Fortune's Weave's HDR mode). BT.2408's is 203 for any display; 250 is the usual middle of
+    // the 200-300 recommended in games for a 1000-nit display (the peak the game is told), and
+    // brighter than BT.2408 since PC monitors show SDR white brighter. Takes effect when the
+    // game starts.
+    SwitchableSetting<int, true> hdr_paper_white{linkage,
+                                                 250,
+                                                 80,
+                                                 500,
+                                                 "hdr_paper_white",
+                                                 Category::Renderer,
+                                                 Specialization::Scalar,
+                                                 true,
+                                                 true};
     // Kompas9's 3440x1440 ultrawide patch for Fortune's Weave 1.1.0 (file_sys/fefw_ultrawide.h),
     // built in; when on, the picture is also stretched to the window. Takes effect at game start.
     SwitchableSetting<bool> fefw_ultrawide{linkage, false, "fefw_ultrawide", Category::Renderer};
+    // Fortune's Weave's own graphics settings files (romfs Graphics/Settings), changed as the game
+    // loads them (file_sys/fefw_romfs_tweaks.cpp; nothing is written to disk): screen-space
+    // reflections (the hubs: 32 rays per pixel), ambient occlusion (SSAO), and how soon crowd
+    // characters switch to simpler models. Take effect when the game starts.
+    // Fortune's Eden's 60 FPS mode for Fortune's Weave 1.1.0 (core/fefw_frame_rate.cpp and the
+    // built-in game patch): the game steps by the real frame time, 30-60 FPS. The older way to
+    // turn it on, an add-on folder named "60fps", still works too. Takes effect at game start.
+    SwitchableSetting<bool> fefw_60fps{linkage, false, "fefw_60fps", Category::Renderer};
+    SwitchableSetting<FefwReflections, true> fefw_reflections{
+        linkage, FefwReflections::Full, "fefw_reflections", Category::Renderer};
+    SwitchableSetting<bool> fefw_ambient_occlusion{linkage, true, "fefw_ambient_occlusion",
+                                                   Category::Renderer};
+    SwitchableSetting<bool> fefw_reduced_crowd_detail{linkage, false, "fefw_reduced_crowd_detail",
+                                                      Category::Renderer};
+    // Scenery (map models) switches to its simpler models at 60% of the game's distances, and
+    // the farthest scenery hides at 600 m instead of 1000 m: fewer draws for the game and the
+    // emulator to prepare (CPU) and less to render (GPU).
+    SwitchableSetting<bool> fefw_reduced_scenery_detail{linkage, false,
+                                                        "fefw_reduced_scenery_detail",
+                                                        Category::Renderer};
     // Sensitivity of the PC mouse when presented as a Joy-Con mouse (Fortune's Weave's mouse
     // controls), 1-20: 1 moves the cursor across the game picture as far as the PC pointer moves
     // across the game window, 20 twenty times as far.
@@ -1065,6 +1111,10 @@ void SetHdrOutputActive(bool active);
 /// "AMD FSR 3.1"), or nullptr before any has run this boot. Shown in the status bar.
 const char* ActiveUpscaler();
 void SetActiveUpscaler(const char* name);
+/// The frame generation that made a frame in the last second or so ("NVIDIA DLSS",
+/// "AMD FSR 3.1"), else null. Set with each frame made.
+const char* ActiveFrameGeneration();
+void SetActiveFrameGeneration(const char* name);
 
 /// What ASTC textures become (never Auto): the choice ResolveAstcRecompression made at the
 /// renderer's start, so it can't change under images already made.

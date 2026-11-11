@@ -5,7 +5,10 @@
 #include <cstdlib>
 #include <limits>
 #include <optional>
+#include <string>
 #include <utility>
+#include "core/fefw_frame_rate.h"
+#include "core/hle/kernel/fefw_cpu_stats.h"
 #include "core/hle/kernel/fefw_wait_stats.h"
 #include "core/hle/service/am/service/native_video_layout.h"
 #include "core/hle/service/am/service/native_video_decoder.h"
@@ -31,6 +34,7 @@
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/kernel/svc_results.h"
 #include "core/hle/service/am/service/graphics_supervisor.h"
+#include "video_core/fefw_load_stats.h"
 #include "core/hle/service/am/service/graphics_session.h"
 #include "core/hle/service/am/service/gpu_session.h"
 #include "core/hle/service/am/service/graphics_supervisor_protocol.h"
@@ -685,6 +689,7 @@ public:
     ~IVi2Session() override {
         if (m_release_poll) system.CoreTiming().UnscheduleEvent(m_release_poll);
         if (m_group_tick) system.CoreTiming().UnscheduleEvent(m_group_tick);
+        if (m_paper_white_watch) system.CoreTiming().UnscheduleEvent(m_paper_white_watch);
         if (m_display_service) {
             for (auto& state : m_client_states) {
                 if (state.layer) m_display_service->GetContainer()->DestroyManagedLayer(*state.layer);
@@ -1000,6 +1005,44 @@ private:
     // worst time between them, and how many took over 50 ms (a missed frame at 30 FPS is ~67 ms)
     // and over 100 ms. Shows whether a PC keeps up without logging every frame. A gap over 2 s
     // (loading, a pause, the window in the background) starts a new period instead of counting.
+    // What FefwLoadStats counted, as a snapshot (all fields rise only).
+    struct LoadSnapshot {
+        u64 pipelines{};
+        u64 translations{};
+        u64 compute{};
+        u64 dropped{};
+        u64 astc{};
+        u64 astc_waits{};
+
+        static LoadSnapshot Take() {
+            auto& c = FefwLoadStats::Get();
+            return {c.graphics_pipelines.load(std::memory_order_relaxed),
+                    c.translations.load(std::memory_order_relaxed),
+                    c.compute_pipelines.load(std::memory_order_relaxed),
+                    c.draws_dropped.load(std::memory_order_relaxed),
+                    c.astc_textures.load(std::memory_order_relaxed),
+                    c.astc_waits.load(std::memory_order_relaxed)};
+        }
+        LoadSnapshot operator-(const LoadSnapshot& o) const {
+            return {pipelines - o.pipelines, translations - o.translations, compute - o.compute,
+                    dropped - o.dropped,     astc - o.astc,               astc_waits - o.astc_waits};
+        }
+        LoadSnapshot& operator+=(const LoadSnapshot& o) {
+            pipelines += o.pipelines;
+            translations += o.translations;
+            compute += o.compute;
+            dropped += o.dropped;
+            astc += o.astc;
+            astc_waits += o.astc_waits;
+            return *this;
+        }
+        std::string Text() const {
+            return fmt::format("{} pipelines built ({} with new shaders), {} compute, {} draws "
+                               "skipped while building, {} ASTC textures ({} waits)",
+                               pipelines, translations, compute, dropped, astc, astc_waits);
+        }
+    };
+
     void LogFramePacing() {
         using Clock = std::chrono::steady_clock;
         struct Pacing {
@@ -1010,17 +1053,25 @@ private:
             double worst_ms{};
             u32 over_50{};
             u32 over_100{};
+            LoadSnapshot period_load{}; // at the start of the period
+            LoadSnapshot slow_load{};   // summed over the frames over 100 ms
         };
         static Pacing pacing;
+        static LoadSnapshot last_load;
         const auto now = Clock::now();
+        const LoadSnapshot load = LoadSnapshot::Take();
+        const LoadSnapshot since_last = load - last_load;
+        last_load = load;
         if (pacing.last == Clock::time_point{}) {
             pacing.last = pacing.period_start = now;
+            pacing.period_load = load;
             return;
         }
         const double gap_ms = std::chrono::duration<double, std::milli>(now - pacing.last).count();
         pacing.last = now;
         if (gap_ms > 2000.0) {
             pacing = Pacing{now, now};
+            pacing.period_load = load;
             return;
         }
         ++pacing.frames;
@@ -1031,15 +1082,22 @@ private:
         }
         if (gap_ms > 100.0) {
             ++pacing.over_100;
+            pacing.slow_load += since_last;
         }
         if (now - pacing.period_start >= std::chrono::seconds{10}) {
+            const LoadSnapshot period = load - pacing.period_load;
+            const bool any = period.pipelines || period.compute || period.astc || period.dropped;
             LOG_INFO(Service_AM,
-                     "Frame pacing, last {:.0f} s: {} frames ({:.1f} FPS), average {:.1f} ms, worst {:.0f} ms, {} over 50 ms, {} over 100 ms",
+                     "Frame pacing, last {:.0f} s: {} frames ({:.1f} FPS), average {:.1f} ms, worst {:.0f} ms, {} over 50 ms, {} over 100 ms{}{}",
                      std::chrono::duration<double>(now - pacing.period_start).count(), pacing.frames,
                      static_cast<double>(pacing.frames) /
                          std::chrono::duration<double>(now - pacing.period_start).count(),
-                     pacing.total_ms / static_cast<double>(pacing.frames), pacing.worst_ms, pacing.over_50, pacing.over_100);
+                     pacing.total_ms / static_cast<double>(pacing.frames), pacing.worst_ms, pacing.over_50, pacing.over_100,
+                     any ? "; " + period.Text() : std::string{},
+                     pacing.over_100 ? "; in the frames over 100 ms: " + pacing.slow_load.Text()
+                                     : std::string{});
             pacing = Pacing{now, now};
+            pacing.period_load = load;
         }
     }
     Result QueueNativeImage(ClientState& state, const u32* packet) {
@@ -1107,7 +1165,11 @@ private:
         // Word 12 is (swap interval << 16) | refresh rate (0x1003c, then 0x2003c once the game
         // is past its boot logos). Fortune's Weave runs at interval 2 (30 fps); forcing 1 made
         // it run at double speed.
-        const u32 swap_interval = std::clamp<u32>(packet[12] >> 16, 1, 4);
+        // Fortune's Weave's 60 FPS mode: present every vsync. The game derives its interval from
+        // its timing rate (60 / rate), which this mode sets from the real frame rate, so a PC at
+        // 30 FPS would otherwise be held at interval 2 and never measure anything faster.
+        const u32 swap_interval =
+            FefwFrameRate::Enabled() ? 1U : std::clamp<u32>(packet[12] >> 16, 1, 4);
         if (static u32 last_interval{}; swap_interval != std::exchange(last_interval, swap_interval)) {
             LOG_INFO(Service_AM, "Native present swap interval {} (word 12 = {:#x})", swap_interval, packet[12]);
         }
@@ -1137,6 +1199,7 @@ private:
             system.CoreTiming().ScheduleLoopingEvent(std::chrono::milliseconds{1}, std::chrono::milliseconds{1}, m_release_poll);
         }
         LogFramePacing();
+        FefwFrameRate::OnPresent(system.ApplicationMemory());
         // Every frame (60 a second): at Info only the first few and when the size changes, so a long
         // session's log stays small enough to send. All of them at Debug.
         static u32 queued_logged{};
@@ -1156,6 +1219,7 @@ private:
     void PresentClientBuffer(HLERequestContext& ctx) {
         FefwWaitStats::MarkThread(FefwWaitStats::Role::Render, &ctx.GetThread());
         FefwWaitStats::MaybeReport();
+        FefwCpuStats::MaybeReport(&ctx.GetThread());
         const auto* packet = ctx.CommandBuffer();
         const u64 token = u64{packet[2]} | (u64{packet[3]} << 32);
         RefreshReleasedBuffers();
@@ -1386,7 +1450,18 @@ private:
     }
 
     void GetDisplayState105(HLERequestContext& ctx) {
-        ReplyDisplayState(ctx, 0x79, 3, HdrPaperWhiteNits);
+        // The player's choice (Settings > Graphics, 250 by default) while the window is HDR.
+        const u32 paper_white = Settings::HdrOutputActive()
+                                    ? static_cast<u32>(Settings::values.hdr_paper_white.GetValue())
+                                    : HdrPaperWhiteNits;
+        static std::atomic<u32> reported{0};
+        if (reported.exchange(paper_white) != paper_white) {
+            LOG_INFO(Service_AM, "VI2 HDR paper white asked for: {} nits", paper_white);
+        }
+        m_paper_white_told = paper_white;
+        m_paper_white_signalled = 0;
+        StartPaperWhiteWatch();
+        ReplyDisplayState(ctx, 0x79, 3, paper_white);
     }
 
     // Command 107 (DragXDrive): request header 0x7b with the display name, reply header 0x7b with seven
@@ -1525,6 +1600,42 @@ private:
         });
         system.CoreTiming().ScheduleLoopingEvent(std::chrono::microseconds{16667},
                                                  std::chrono::microseconds{16667}, m_group_tick);
+    }
+
+    // HDR paper white changed in Settings while the game runs: raise the HDR status monitors
+    // (kind 2, command 265), as a display change would, so the game asks again (command 105).
+    // Once per change; checked four times a second from the game's first question on (the vsync
+    // tick only runs for games that register for vsync, which Fortune's Weave doesn't here).
+    void StartPaperWhiteWatch() {
+        if (m_paper_white_watch) return;
+        m_paper_white_watch = Core::Timing::CreateEvent(
+            "NativeViPaperWhite", [this](s64, std::chrono::nanoseconds) -> std::optional<std::chrono::nanoseconds> {
+                const auto guard = LockService();
+                SignalPaperWhiteChange();
+                return std::nullopt;
+            });
+        system.CoreTiming().ScheduleLoopingEvent(std::chrono::milliseconds{250},
+                                                 std::chrono::milliseconds{250}, m_paper_white_watch);
+    }
+    void SignalPaperWhiteChange() {
+        if (m_paper_white_told == 0 || !Settings::HdrOutputActive()) {
+            return;
+        }
+        const u32 wanted = static_cast<u32>(Settings::values.hdr_paper_white.GetValue());
+        if (wanted == m_paper_white_told || wanted == m_paper_white_signalled) {
+            return;
+        }
+        m_paper_white_signalled = wanted;
+        u32 signalled = 0;
+        for (size_t group = 0; group < m_request_group_displays.size(); ++group) {
+            if (m_request_group_displays[group] && m_request_group_displays[group]->kind == 2 &&
+                m_request_group_events[group]) {
+                m_request_group_events[group]->Signal(kernel);
+                ++signalled;
+            }
+        }
+        LOG_INFO(Service_AM, "HDR paper white changed to {} nits: {} HDR status monitor(s) told",
+                 wanted, signalled);
     }
 
     void DuplicateRequestGroupEvent(HLERequestContext& ctx) {
@@ -1668,6 +1779,9 @@ private:
     std::shared_ptr<NativeImageRegistry> m_images;
     std::shared_ptr<Core::Timing::EventType> m_release_poll;
     std::shared_ptr<Core::Timing::EventType> m_group_tick;
+    std::shared_ptr<Core::Timing::EventType> m_paper_white_watch;
+    u32 m_paper_white_told{};      ///< The paper white the game was last given (command 105)
+    u32 m_paper_white_signalled{}; ///< A changed value the HDR monitors were raised for
     std::array<ClientState, 16> m_client_states{};
     u32 m_client_slots{};
     std::shared_ptr<VI::IApplicationDisplayService> m_display_service;
@@ -2045,7 +2159,8 @@ void IGraphicsSupervisor::InitializeVideoService(HLERequestContext& ctx) {
                     m_image_registry->module = m_nv_module;
                     m_image_registry->memory_session = m_nv_module->GetContainer().OpenSession(m_process);
                 }
-                m_video_service = std::make_shared<NativeVideoService>(system, m_nv_module, m_process, m_image_registry);
+                if (!m_video_server) m_video_server = MakeNativeVideoServer(system);
+                m_video_service = std::make_shared<NativeVideoService>(system, m_nv_module, m_process, m_image_registry, m_video_server);
             }
             if (ctx.GetCommand() == 901) m_video_decoder_initialized = true;
             else m_video_encoder_initialized = true;
@@ -2626,8 +2741,9 @@ void IGraphicsSupervisor::CreateChatImagePool(HLERequestContext& ctx) {
                                     m_image_registry->memory_session =
                                         m_nv_module->GetContainer().OpenSession(m_process);
                                 }
+                                if (!m_video_server) m_video_server = MakeNativeVideoServer(system);
                                 m_video_service = std::make_shared<NativeVideoService>(
-                                    system, m_nv_module, m_process, m_image_registry);
+                                    system, m_nv_module, m_process, m_image_registry, m_video_server);
                             }
                             std::array<u32, 16> video_preference{};
                             video_preference[1] = 5;

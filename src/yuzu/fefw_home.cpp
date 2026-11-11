@@ -4,6 +4,8 @@
 #include "yuzu/fefw_home.h"
 
 #include <QBoxLayout>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QEvent>
 #include <QFont>
 #include <QFontMetrics>
@@ -13,6 +15,8 @@
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QSlider>
+#include <QSignalBlocker>
 #include <QStandardItemModel>
 
 #include "common/fefw_version.h"
@@ -122,7 +126,9 @@ FefwHome::FefwHome(QWidget* list, QWidget* parent) : QWidget(parent) {
         "#fefwHomePlay { padding: 4px 28px;"
         " color: #1b1824; background-color: #e0b04a; border: 1px solid #e0b04a; border-radius: 9px; }"
         "#fefwHomePlay:hover { background-color: #f0c463; }"
-        "#fefwHomePlay:pressed { background-color: #c39232; }"));
+        "#fefwHomePlay:pressed { background-color: #c39232; }"
+        "#fefwHome60 { color: #ece8f3; background: transparent; }"
+        "#fefwHomeCaption { font-size: 8pt; color: #a79fb8; background: transparent; }"));
 
     icon_label = new QLabel(card);
     icon_label->setObjectName(QStringLiteral("fefwHomeIcon"));
@@ -145,23 +151,122 @@ FefwHome::FefwHome(QWidget* list, QWidget* parent) : QWidget(parent) {
     play_font.setPointSize(12);
     play_font.setBold(true);
     play_button->setFont(play_font);
-    play_button->setMinimumHeight(QFontMetrics(play_font).height() + 16);
+    // The theme's "QPushButton { min-height: 13px }" replaces a setMinimumHeight() when the style
+    // sheet is applied, so the height goes in the button's own style sheet: the text's full
+    // height (descenders included) plus room above and below, in the padding's logical pixels.
+    const int play_text_height = QFontMetrics(play_font).height();
+    play_button->setStyleSheet(
+        QStringLiteral("min-height: %1px;").arg(play_text_height + 8));
+    play_button->setMinimumHeight(play_text_height + 18);
     play_button->setCursor(Qt::PointingHandCursor);
+    // The 60 FPS mode, beside Play (it takes effect when the game starts).
+    sixty_fps = new QCheckBox(tr("60 FPS"), card);
+    sixty_fps->setObjectName(QStringLiteral("fefwHome60"));
+    sixty_fps->setCursor(Qt::PointingHandCursor);
+    sixty_fps->setToolTip(tr("Fortune's Weave runs at up to 60 FPS instead of 30 (game version "
+                             "1.1.0). Takes effect when the game starts."));
+    sixty_fps->setChecked(Settings::values.fefw_60fps.GetValue());
+    // The settings people most often look for, beside Play: the upscaler, its quality and
+    // frame generation (all take effect when the game starts), and the Performance page.
+    upscaler_box = new QComboBox(card);
+    for (const Settings::Upscaler upscaler :
+         {Settings::Upscaler::Fsr3, Settings::Upscaler::NvidiaDlss, Settings::Upscaler::Fsr4,
+          Settings::Upscaler::GameDlss}) {
+        upscaler_box->addItem(UpscalerName(upscaler), static_cast<int>(upscaler));
+    }
+    upscaler_box->setToolTip(tr("What upscales the game's 3D scene: AMD FSR 3.1 (any card), "
+                                "NVIDIA DLSS (GeForce RTX), AMD FSR 4 (Radeon RX 7000/9000) or "
+                                "the game's own DLSS. Takes effect when the game starts."));
+    quality_box = new QComboBox(card);
+    quality_box->setToolTip(tr("How big the 3D scene is drawn before it is upscaled: Native "
+                               "(DLAA with NVIDIA DLSS) is the sharpest and heaviest, Performance "
+                               "the lightest. Applies at 1X resolution. Takes effect when the "
+                               "game starts."));
+    frame_gen_box = new QComboBox(card);
+    frame_gen_box->addItem(tr("Off"), static_cast<int>(Settings::FrameGeneration::Off));
+    frame_gen_box->addItem(tr("AMD FSR 3.1"), static_cast<int>(Settings::FrameGeneration::AmdFsr3));
+    frame_gen_box->addItem(tr("NVIDIA DLSS"),
+                           static_cast<int>(Settings::FrameGeneration::NvidiaDlss));
+    frame_gen_box->setToolTip(
+        tr("Makes a frame between each two of the game's (60 FPS shows as 120) in the 3D scenes. "
+           "Needs a display faster than the game's frame rate. AMD FSR 3.1: any card. NVIDIA "
+           "DLSS: GeForce RTX 40 and 50, with NVIDIA Streamline's DLLs in the user folder's "
+           "streamline folder. Takes effect when the game starts. Experimental."));
+    for (QComboBox* const box : {upscaler_box, quality_box, frame_gen_box}) {
+        box->setCursor(Qt::PointingHandCursor);
+        box->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    }
+    // HDR output and its paper white (also in the Graphics settings).
+    hdr_box = new QCheckBox(tr("HDR"), card);
+    hdr_box->setObjectName(QStringLiteral("fefwHome60"));
+    hdr_box->setCursor(Qt::PointingHandCursor);
+    hdr_box->setToolTip(tr("HDR10 output when Windows HDR is on: the game sends its own HDR "
+                           "picture. Takes effect when the game starts."));
+    ultrawide_box = new QCheckBox(tr("Ultrawide"), card);
+    ultrawide_box->setObjectName(QStringLiteral("fefwHome60"));
+    ultrawide_box->setCursor(Qt::PointingHandCursor);
+    ultrawide_box->setToolTip(tr("Kompas9's ultrawide patch: 3440x1440 (21:9), with the HUD, menus "
+                                 "and movies kept at 16:9. For 21:9 monitors only; play "
+                                 "fullscreen. Game version 1.1.0 only. Takes effect when the game "
+                                 "starts."));
+    paper_white = new QSlider(Qt::Horizontal, card);
+    paper_white->setRange(80, 500);
+    paper_white->setSingleStep(10);
+    paper_white->setPageStep(50);
+    paper_white->setMinimumWidth(130);
+    paper_white->setCursor(Qt::PointingHandCursor);
+    paper_white->setToolTip(tr("How bright the game's white (menus, text, daylight) is in HDR, "
+                               "in nits. 250 suits most HDR monitors; lower it if the picture "
+                               "looks too bright. Takes effect when the game starts."));
+    paper_white_label = new QLabel(card);
+    paper_white_label->setObjectName(QStringLiteral("fefwHomeCaption"));
+    QPushButton* const performance = new QPushButton(tr("Performance Settings"), card);
     QPushButton* const game_settings = new QPushButton(tr("Game Settings"), card);
     QPushButton* const settings = new QPushButton(tr("Settings"), card);
     QPushButton* const updates = new QPushButton(tr("Check for Updates"), card);
-    for (QPushButton* const button : {game_settings, settings, updates}) {
+    for (QPushButton* const button : {performance, game_settings, settings, updates}) {
         button->setCursor(Qt::PointingHandCursor);
     }
+    // A small caption above each drop-down.
+    const auto captioned = [this](const QString& caption, QWidget* widget) {
+        QLabel* const label = new QLabel(caption, card);
+        label->setObjectName(QStringLiteral("fefwHomeCaption"));
+        QVBoxLayout* const column = new QVBoxLayout;
+        column->setSpacing(2);
+        column->addWidget(label);
+        column->addWidget(widget);
+        return column;
+    };
 
     QHBoxLayout* const buttons = new QHBoxLayout;
     buttons->setSpacing(8);
-    buttons->addWidget(play_button);
+    buttons->addWidget(play_button, 0, Qt::AlignBottom);
+    buttons->addSpacing(4);
+    buttons->addWidget(sixty_fps, 0, Qt::AlignBottom);
     buttons->addSpacing(6);
-    buttons->addWidget(game_settings);
-    buttons->addWidget(settings);
-    buttons->addWidget(updates);
+    buttons->addWidget(ultrawide_box, 0, Qt::AlignBottom);
+    buttons->addSpacing(6);
+    buttons->addWidget(hdr_box, 0, Qt::AlignBottom);
+    {
+        QVBoxLayout* const column = new QVBoxLayout;
+        column->setSpacing(2);
+        column->addWidget(paper_white_label);
+        column->addWidget(paper_white);
+        buttons->addLayout(column);
+    }
+    buttons->addSpacing(10);
+    buttons->addLayout(captioned(tr("Upscaler"), upscaler_box));
+    buttons->addLayout(captioned(tr("Upscaler quality"), quality_box));
+    buttons->addLayout(captioned(tr("Frame generation"), frame_gen_box));
     buttons->addStretch();
+
+    QHBoxLayout* const more = new QHBoxLayout;
+    more->setSpacing(8);
+    more->addWidget(performance);
+    more->addWidget(game_settings);
+    more->addWidget(settings);
+    more->addWidget(updates);
+    more->addStretch();
 
     QVBoxLayout* const text = new QVBoxLayout;
     text->setSpacing(4);
@@ -171,6 +276,8 @@ FefwHome::FefwHome(QWidget* list, QWidget* parent) : QWidget(parent) {
     text->addWidget(status_label);
     text->addSpacing(10);
     text->addLayout(buttons);
+    text->addSpacing(4);
+    text->addLayout(more);
     text->addStretch();
 
     QHBoxLayout* const card_layout = new QHBoxLayout(card);
@@ -199,6 +306,55 @@ FefwHome::FefwHome(QWidget* list, QWidget* parent) : QWidget(parent) {
             emit GameSettingsRequested(TitleId, game_path);
         }
     });
+    connect(sixty_fps, &QCheckBox::toggled, this, [this](bool checked) {
+        if (Settings::values.fefw_60fps.GetValue() != checked) {
+            Settings::values.fefw_60fps.SetValue(checked);
+            emit SettingChanged();
+        }
+    });
+    connect(upscaler_box, &QComboBox::currentIndexChanged, this, [this](int index) {
+        const auto upscaler = static_cast<Settings::Upscaler>(upscaler_box->itemData(index).toInt());
+        if (index >= 0 && Settings::values.upscaler.GetValue() != upscaler) {
+            Settings::values.upscaler.SetValue(upscaler);
+            UpdateStatusLine();
+            emit SettingChanged();
+        }
+    });
+    connect(quality_box, &QComboBox::currentIndexChanged, this, [this](int index) {
+        const auto quality =
+            static_cast<Settings::UpscalerQuality>(quality_box->itemData(index).toInt());
+        if (index >= 0 && Settings::values.upscaler_quality.GetValue() != quality) {
+            Settings::values.upscaler_quality.SetValue(quality);
+            emit SettingChanged();
+        }
+    });
+    connect(frame_gen_box, &QComboBox::currentIndexChanged, this, [this](int index) {
+        const auto frame_gen =
+            static_cast<Settings::FrameGeneration>(frame_gen_box->itemData(index).toInt());
+        if (index >= 0 && Settings::values.frame_generation.GetValue() != frame_gen) {
+            Settings::values.frame_generation.SetValue(frame_gen);
+            emit SettingChanged();
+        }
+    });
+    connect(performance, &QPushButton::clicked, this, &FefwHome::PerformanceSettingsRequested);
+    connect(ultrawide_box, &QCheckBox::toggled, this, [this](bool checked) {
+        if (Settings::values.fefw_ultrawide.GetValue() != checked) {
+            Settings::values.fefw_ultrawide.SetValue(checked);
+            emit SettingChanged();
+        }
+    });
+    connect(hdr_box, &QCheckBox::toggled, this, [this](bool checked) {
+        paper_white->setEnabled(checked);
+        if (Settings::values.hdr_output.GetValue() != checked) {
+            Settings::values.hdr_output.SetValue(checked);
+            emit SettingChanged();
+        }
+    });
+    connect(paper_white, &QSlider::valueChanged, this, [this](int value) {
+        paper_white_label->setText(tr("Paper white: %1 nits").arg(value));
+        Settings::values.hdr_paper_white.SetValue(value);
+    });
+    connect(paper_white, &QSlider::sliderReleased, this, &FefwHome::SettingChanged);
     connect(settings, &QPushButton::clicked, this, &FefwHome::SettingsRequested);
     connect(updates, &QPushButton::clicked, this, &FefwHome::UpdateCheckRequested);
 }
@@ -243,13 +399,40 @@ void FefwHome::Refresh(const QStandardItemModel& model) {
 void FefwHome::UpdateStatusLine() {
     const Settings::Upscaler upscaler = Settings::values.upscaler.GetValue();
     const bool at_1x = Settings::values.resolution_setup.GetValue() == Settings::ResolutionSetup::Res1X;
-    QString line = tr("Upscaler: %1").arg(UpscalerName(upscaler));
-    if (upscaler != Settings::Upscaler::GameDlss) {
-        const Settings::UpscalerQuality quality =
-            at_1x ? Settings::values.upscaler_quality.GetValue()
-                  : Settings::UpscalerQuality::Performance;
-        line += QStringLiteral(" – %1").arg(
-            QualityName(quality, upscaler == Settings::Upscaler::NvidiaDlss));
+    // The drop-downs show the choices; the line only says when the quality doesn't apply.
+    status_label->setText(upscaler == Settings::Upscaler::GameDlss
+                              ? tr("The game's own DLSS always draws at Performance.")
+                          : !at_1x ? tr("Upscaler quality applies at 1X resolution (Performance "
+                                        "at this one).")
+                                   : QString{});
+    status_label->setVisible(!status_label->text().isEmpty());
+
+    const QSignalBlocker sixty_blocker{sixty_fps};
+    sixty_fps->setChecked(Settings::values.fefw_60fps.GetValue());
+    const QSignalBlocker upscaler_blocker{upscaler_box};
+    upscaler_box->setCurrentIndex(upscaler_box->findData(static_cast<int>(upscaler)));
+    // The quality names depend on the upscaler (Native is DLAA with NVIDIA DLSS).
+    const QSignalBlocker quality_blocker{quality_box};
+    quality_box->clear();
+    for (const Settings::UpscalerQuality quality :
+         {Settings::UpscalerQuality::Native, Settings::UpscalerQuality::UltraQuality,
+          Settings::UpscalerQuality::Quality, Settings::UpscalerQuality::Balanced,
+          Settings::UpscalerQuality::Performance}) {
+        quality_box->addItem(QualityName(quality, upscaler == Settings::Upscaler::NvidiaDlss),
+                             static_cast<int>(quality));
     }
-    status_label->setText(line);
+    quality_box->setCurrentIndex(
+        quality_box->findData(static_cast<int>(Settings::values.upscaler_quality.GetValue())));
+    quality_box->setEnabled(upscaler != Settings::Upscaler::GameDlss);
+    const QSignalBlocker ultrawide_blocker{ultrawide_box};
+    ultrawide_box->setChecked(Settings::values.fefw_ultrawide.GetValue());
+    const QSignalBlocker hdr_blocker{hdr_box};
+    hdr_box->setChecked(Settings::values.hdr_output.GetValue());
+    paper_white->setEnabled(hdr_box->isChecked());
+    const QSignalBlocker paper_white_blocker{paper_white};
+    paper_white->setValue(Settings::values.hdr_paper_white.GetValue());
+    paper_white_label->setText(tr("Paper white: %1 nits").arg(paper_white->value()));
+    const QSignalBlocker frame_gen_blocker{frame_gen_box};
+    frame_gen_box->setCurrentIndex(
+        frame_gen_box->findData(static_cast<int>(Settings::values.frame_generation.GetValue())));
 }

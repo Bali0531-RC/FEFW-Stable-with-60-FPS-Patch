@@ -64,7 +64,14 @@ TextureCache<P>::TextureCache(Runtime& runtime_, Tegra::MaxwellDeviceMemoryManag
     void(slot_samplers.insert(runtime, sampler_descriptor));
 
     if constexpr (HAS_DEVICE_MEMORY_INFO) {
-        const s64 device_local_memory = static_cast<s64>(runtime.GetDeviceLocalMemory());
+        s64 device_local_memory = static_cast<s64>(runtime.GetDeviceLocalMemory());
+        // Testing: EDEN_TC_MEMORY_LIMIT_MIB sets the thresholds as for a smaller card.
+        if (const char* limit = std::getenv("EDEN_TC_MEMORY_LIMIT_MIB"); limit != nullptr) {
+            const s64 mib = static_cast<s64>(std::strtoull(limit, nullptr, 10));
+            if (mib >= 2048) {
+                device_local_memory = (std::min)(device_local_memory, mib << 20);
+            }
+        }
         const s64 min_spacing_expected = device_local_memory - 1_GiB;
         const s64 min_spacing_critical = device_local_memory - 512_MiB;
         const s64 mem_threshold = (std::min)(device_local_memory, TARGET_THRESHOLD);
@@ -135,6 +142,8 @@ u32 TextureCache<P>::RunGarbageCollector() {
     bool high_priority_mode = false;
     bool aggressive_mode = false;
     bool evict_old_costly = false;
+    bool evict_old_gpu = false;
+    bool allow_writebacks = true;
     u64 ticks_to_destroy = 0;
     size_t num_iterations = 0;
     // Diagnostics: a pass that takes long is logged (see the end of this function).
@@ -142,13 +151,29 @@ u32 TextureCache<P>::RunGarbageCollector() {
     const u64 used_before = total_used_memory;
     u32 num_deleted = 0;
     u32 num_downloaded = 0;
+    // Fortune's Eden: over the expected level a pass frees until the excess is covered, not a
+    // fixed 20 images. A scene that made new large images (render targets) faster than 20 per
+    // pass pushed use from the expected level to the hard limit before old ones were cleared.
+    u64 freed_bytes = 0;
+    u64 target_free = 0;
     bool was_high_priority = false;
     bool was_aggressive = false;
     const auto Configure = [&](bool allow_aggressive) {
         high_priority_mode = total_used_memory >= expected_memory;
         aggressive_mode = allow_aggressive && total_used_memory >= critical_memory;
         ticks_to_destroy = aggressive_mode ? 10ULL : high_priority_mode ? 25ULL : 50ULL;
-        num_iterations = aggressive_mode ? 40 : (high_priority_mode ? 20 : 10);
+        num_iterations = aggressive_mode ? 800 : (high_priority_mode ? 400 : 10);
+        // Free down to 256 MiB below the expected level. Images freed in the last few frames
+        // still count in use until they are destroyed: over the hard limit a pass runs every
+        // frame, so without taking them off each pass would free the same excess again.
+        u64 pending = 0;
+        for (const auto& [frame, bytes] : recent_frees) {
+            if (frame + TICKS_TO_DESTROY + 2 > frame_tick) {
+                pending += bytes;
+            }
+        }
+        const u64 excess = total_used_memory - expected_memory + 256_MiB;
+        target_free = high_priority_mode ? (excess > pending ? excess - pending : 1) : 0;
         was_high_priority = was_high_priority || high_priority_mode;
         was_aggressive = was_aggressive || aggressive_mode;
     };
@@ -194,9 +219,11 @@ u32 TextureCache<P>::RunGarbageCollector() {
         writeback_bytes = 0;
     };
     const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode,
-                          &evict_old_costly, &num_deleted, &num_downloaded, &writebacks,
-                          &writeback_bytes, &UsedMemory](ImageId image_id) {
-        if (num_iterations == 0) {
+                          &evict_old_costly, &evict_old_gpu, &allow_writebacks, &num_deleted, &num_downloaded,
+                          &writebacks,
+                          &writeback_bytes, &UsedMemory, &freed_bytes,
+                          &target_free](ImageId image_id) {
+        if (num_iterations == 0 || (target_free != 0 && freed_bytes >= target_free)) {
             return true;
         }
         --num_iterations;
@@ -216,15 +243,40 @@ u32 TextureCache<P>::RunGarbageCollector() {
         // (in memory critical mode too). Small ones are kept in every mode, without counting
         // against the pass so they don't hold up the images behind them; large ones are still
         // collected.
-        static constexpr u64 KEEP_GPU_IMAGE_BYTES = 4_MiB;
-        if (True(image.flags & ImageFlagBits::GpuModified) && !must_download &&
-            image.guest_size_bytes <= KEEP_GPU_IMAGE_BYTES) {
+        //
+        // Fortune's Eden: only while guest memory doesn't have newer contents (an image the CPU
+        // wrote over after the GPU drew into it is reloaded from guest memory on its next use
+        // anyway). And 1 MiB, not 4: kept images were what grew over long sessions (5.4 -> 10.7 GB
+        // in two hours on a 16 GB card; on an 8 GB card the hard limit all the time with DLSS
+        // failing for lack of memory, issue #31). Those up to 4 MiB were 744 MiB in 203 images
+        // eight minutes after boot, most unused for a minute. The sky table is 256 KiB.
+        static constexpr u64 KEEP_GPU_IMAGE_BYTES = 1_MiB;
+        const bool keeps_gpu_contents = True(image.flags & ImageFlagBits::GpuModified) &&
+                                        False(image.flags & ImageFlagBits::CpuModified) &&
+                                        !must_download;
+        if (keeps_gpu_contents && image.guest_size_bytes <= KEEP_GPU_IMAGE_BYTES) {
             ++num_iterations;
+            return false;
+        }
+        // Fortune's Eden: larger ones are kept too until the hard limit. Passes over the
+        // expected level now free hundreds of images, and losing what the GPU drew into a
+        // shadow map or effect buffer would show as black or flickering until it is redrawn.
+        // Except those unused for 30 seconds (evict_old_gpu), earlier scenes' render targets:
+        // kept, they were most of what grew (1.5 GB in 205 images three minutes after boot, a
+        // third of it unused for a minute), until the hard limit held use there (issue #31).
+        if (keeps_gpu_contents && !aggressive_mode && !evict_old_gpu) {
+            ++num_iterations;
+            return false;
+        }
+        // Each image written back waits for the GPU copy: keep a pass's write-backs to 256 MiB
+        // so a big pass doesn't become one long hitch (the rest go in the next passes).
+        if (must_download && (writeback_bytes >= 256_MiB || !allow_writebacks)) {
             return false;
         }
         if (True(image.flags & ImageFlagBits::Tracked)) {
             UntrackImage(image, image_id);
         }
+        freed_bytes += ImageMemoryEstimate(image);
         UnregisterImage(image_id);
         if (must_download) {
             writebacks.push_back(image_id);
@@ -248,23 +300,61 @@ u32 TextureCache<P>::RunGarbageCollector() {
     // collected in the hard mode near the limit: the cache filled up to it with earlier scenes'
     // textures and then collected in bursts (uncompressed at 1x with the ultrawide patch on a 7 GB
     // limit ran at 35 FPS doing so). Over the expected use, first collect costly images unused for
-    // EDEN_TC_OLD_AGE frames (1800, 30 s at 60 FPS; 0 turns it off). From Eglantine a407703f6d.
+    // EDEN_TC_OLD_AGE frames (600, 10 s at 60 FPS; 0 turns it off). From Eglantine a407703f6d.
+    // Fortune's Eden: 30 s (1800) protected every texture a busy scene had touched in the last
+    // half minute, so in battles use climbed past the expected level all the way to the hard
+    // limit (15.4 GB on a 24 GB card) and was then held there by hard-mode bursts. With ASTC
+    // re-compressed on the GPU a texture is cheap enough to load again after 10 s unused.
     static const u64 old_age = [] {
         const char* value = std::getenv("EDEN_TC_OLD_AGE");
-        return value != nullptr ? std::strtoull(value, nullptr, 10) : 1800ULL;
+        return value != nullptr ? std::strtoull(value, nullptr, 10) : 600ULL;
     }();
     if (high_priority_mode && old_age != 0 && frame_tick > old_age) {
         evict_old_costly = true;
         lru_cache.ForEachItemBelow(frame_tick - old_age, Cleanup);
         evict_old_costly = false;
     }
-    lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
-    FlushWritebacks();
-    if (total_used_memory >= critical_memory) {
-        Configure(true);
-        lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
-        FlushWritebacks();
+    // Large GPU-drawn images that can't be written back, unused for 30 s (EDEN_TC_OLD_GPU_AGE
+    // frames; 0 turns it off), go next (see Cleanup).
+    static const u64 old_gpu_age = [] {
+        const char* value = std::getenv("EDEN_TC_OLD_GPU_AGE");
+        return value != nullptr ? std::strtoull(value, nullptr, 10) : 1800ULL;
+    }();
+    if (high_priority_mode && old_gpu_age != 0 && frame_tick > old_gpu_age) {
+        evict_old_gpu = true;
+        lru_cache.ForEachItemBelow(frame_tick - old_gpu_age, Cleanup);
+        evict_old_gpu = false;
     }
+    // Over the hard level, write back only images unused for 2 s (see below).
+    static constexpr u64 RECENT_WRITEBACK_TICKS = 120;
+    const bool hard_pass = total_used_memory >= critical_memory;
+    allow_writebacks = !hard_pass;
+    lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
+    allow_writebacks = true;
+    FlushWritebacks();
+    if (hard_pass) {
+        // Fortune's Eden: in the hard mode, images the GPU drew into and that were used in the
+        // last 2 seconds are not written back and freed. Each write-back waits for the GPU, and
+        // such images (render targets) are usually drawn again moments later: on a 6 GB card in
+        // the hard mode all the time, this ran at 20 FPS with 100 frames over 50 ms every 10 s
+        // (issue #35). Older ones go first, then the rest without write-backs.
+        Configure(true);
+        if (frame_tick > RECENT_WRITEBACK_TICKS) {
+            lru_cache.ForEachItemBelow(frame_tick - RECENT_WRITEBACK_TICKS, Cleanup);
+            FlushWritebacks();
+        }
+        if (total_used_memory >= critical_memory) {
+            Configure(true);
+            allow_writebacks = false;
+            lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
+            allow_writebacks = true;
+        }
+    }
+    auto& slot = recent_frees[frame_tick % recent_frees.size()];
+    if (slot.first != frame_tick) {
+        slot = {frame_tick, 0};
+    }
+    slot.second += freed_bytes;
     // Log the passes long enough to show as a hitch (each image written back to guest memory
     // waits for the GPU), at most 200 times a session.
     const auto pass_ms = std::chrono::duration<double, std::milli>(
@@ -285,6 +375,20 @@ u32 TextureCache<P>::RunGarbageCollector() {
 
 template <class P>
 void TextureCache<P>::TickFrame() {
+    // Count again next frame while the game keeps evaluating DLSS (from the frame's start: the
+    // UI may be drawn before the evaluation).
+    // (The draw counts start over at each evaluation: the game may present a frame after it has
+    // started the next one.)
+    // (Once the game has evaluated DLSS, draws stay watched: the frame is combined after the
+    // composite that follows its evaluation.)
+    fg_ui_watch = fg_ui_watch || fg_ui_dlss_seen;
+    fg_ui_dlss_seen = false;
+    if (fg_trace_active) {
+        FlushRenderTargetTrace();
+        LOG_INFO(HW_GPU, "Draw trace: frame end");
+        fg_trace_active = false;
+        fg_trace_done = true;
+    }
     // If we can obtain the memory info, use it instead of the estimate.
     if (runtime.CanReportMemoryUsage()) {
         total_used_memory = runtime.GetDeviceMemoryUsage();
@@ -315,6 +419,54 @@ void TextureCache<P>::TickFrame() {
         minute_passes = 0;
         minute_freed = 0;
         minute_collect_ms = 0.0;
+    }
+    // Diagnostics, about every five minutes: what the cached images are, and how much of each
+    // kind hasn't been used for a minute (what a growing cache is made of).
+    if (frame_tick % 18000 == 9000) {
+        struct Kind {
+            u64 bytes = 0;
+            u64 count = 0;
+            u64 idle_bytes = 0;
+        };
+        // 0 drawn by the GPU, written back when collected; 1 drawn by the GPU, kept (can't be
+        // written back; 5 the small ones, kept in every mode); 2 drawn by the GPU, then overwritten by the CPU; 3 costly (ASTC);
+        // 4 the rest.
+        std::array<Kind, 6> kinds{};
+        const auto KindOf = [this](const ImageBase& image) -> size_t {
+            if (True(image.flags & ImageFlagBits::GpuModified)) {
+                if (True(image.flags & ImageFlagBits::CpuModified)) {
+                    return 2;
+                }
+                if (IsDownloadable(image) && False(image.flags & ImageFlagBits::BadOverlap)) {
+                    return 0;
+                }
+                return image.guest_size_bytes <= 1_MiB ? 5 : 1;
+            }
+            return True(image.flags & ImageFlagBits::CostlyLoad) ? 3 : 4;
+        };
+        lru_cache.ForEachItemBelow(frame_tick, [&](ImageId image_id) {
+            const ImageBase& image = slot_images[image_id];
+            Kind& kind = kinds[KindOf(image)];
+            kind.bytes += ImageMemoryEstimate(image);
+            ++kind.count;
+        });
+        if (frame_tick > 3600) {
+            lru_cache.ForEachItemBelow(frame_tick - 3600, [&](ImageId image_id) {
+                const ImageBase& image = slot_images[image_id];
+                kinds[KindOf(image)].idle_bytes += ImageMemoryEstimate(image);
+            });
+        }
+        const auto Mib = [](u64 bytes) { return bytes >> 20; };
+        LOG_INFO(HW_GPU,
+                 "Texture cache images (MiB, count, MiB unused for a minute): GPU-drawn written "
+                 "back {}/{}/{}, GPU-drawn kept {}/{}/{} (small {}/{}/{}), GPU-drawn then CPU-written {}/{}/{}, "
+                 "ASTC {}/{}/{}, other {}/{}/{}",
+                 Mib(kinds[0].bytes), kinds[0].count, Mib(kinds[0].idle_bytes),
+                 Mib(kinds[1].bytes), kinds[1].count, Mib(kinds[1].idle_bytes),
+                 Mib(kinds[5].bytes), kinds[5].count, Mib(kinds[5].idle_bytes),
+                 Mib(kinds[2].bytes), kinds[2].count, Mib(kinds[2].idle_bytes),
+                 Mib(kinds[3].bytes), kinds[3].count, Mib(kinds[3].idle_bytes),
+                 Mib(kinds[4].bytes), kinds[4].count, Mib(kinds[4].idle_bytes));
     }
     for (std::shared_ptr<Image>& image : retired_images) {
         sentenced_images.Push(std::move(*image));
@@ -706,6 +858,12 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear) {
         }
         const ImageViewId depth_buffer_id = render_targets.depth_buffer_id;
         PrepareImageView(depth_buffer_id, true, is_clear && IsFullClear(depth_buffer_id));
+        if (fg_trace_active) [[unlikely]] {
+            TraceRenderTargets();
+        }
+        if (fg_ui_watch) [[unlikely]] {
+            WatchUiLayer();
+        }
         return;
     }
 
@@ -760,6 +918,186 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear) {
     }
 
     flags[Dirty::DepthBiasGlobal] = true;
+    if (fg_trace_active) [[unlikely]] {
+        TraceRenderTargets();
+    }
+    if (fg_ui_watch) [[unlikely]] {
+        WatchUiLayer();
+    }
+}
+
+template <class P>
+void TextureCache<P>::WatchUiLayer() {
+    const ImageViewId view_id = render_targets.color_buffer_ids[0];
+    if (!view_id) {
+        return;
+    }
+    const ImageId image_id = slot_image_views[view_id].image_id;
+    if (!image_id || image_id == fg_ui_exclude) {
+        return;
+    }
+    const ImageBase& image = slot_images[image_id];
+    // A presented buffer being drawn (the game combining its picture and UI): it will show this
+    // frame, and the UI layer is complete now (the game clears it early in the next frame, before
+    // that frame's DLSS evaluation): copy it.
+    for (PresentMark& mark : fg_present_marks) {
+        if (mark.address != 0 && mark.address == image.cpu_addr &&
+            image.info.size.width == mark.width && image.info.size.height == mark.height) {
+            if (mark.seq != fg_seq && FrameGenOrderTrace()) {
+                LOG_INFO(HW_GPU, "FG order: draw into presented {:#x} (frame {})", mark.address,
+                         fg_seq);
+            }
+            mark.seq = fg_seq;
+            FrameGenCopyUi();
+        }
+    }
+    const PixelFormat format = image.info.format;
+    const bool rgba8 = format == PixelFormat::A8B8G8R8_SRGB ||
+                       format == PixelFormat::A8B8G8R8_UNORM ||
+                       format == PixelFormat::B8G8R8A8_SRGB || format == PixelFormat::B8G8R8A8_UNORM;
+    if (!rgba8 || image.info.size.width != fg_ui_size.width ||
+        image.info.size.height != fg_ui_size.height || image.info.num_samples != 1) {
+        return;
+    }
+    for (size_t i = 0; i < fg_ui_count_size; ++i) {
+        if (fg_ui_counts[i].first == image_id) {
+            ++fg_ui_counts[i].second;
+            return;
+        }
+    }
+    if (fg_ui_count_size < fg_ui_counts.size()) {
+        fg_ui_counts[fg_ui_count_size++] = {image_id, 1};
+    }
+}
+
+template <class P>
+std::array<typename P::ImageView*, 4> TextureCache<P>::FrameGenUiLayers() {
+    std::array<ImageView*, 4> result{};
+    const std::array<ImageId, 4> ids = FrameGenUiLayerIds();
+    for (size_t i = 0; i < ids.size() && ids[i]; ++i) {
+        const ImageBase& image = slot_images[ids[i]];
+        const ImageViewId view = FindOrEmplaceImageView(
+            ids[i], ImageViewInfo(ImageViewType::e2D, image.info.format,
+                                  SubresourceRange{.base = {0, 0}, .extent = {1, 1}}));
+        result[i] = &slot_image_views[view];
+    }
+    return result;
+}
+
+template <class P>
+typename TextureCache<P>::FrameGenFrameInfo TextureCache<P>::FrameGenFrame(DAddr presented,
+                                                                           u32 width, u32 height) {
+    FrameGenFrameInfo info{.seq = fg_seq, .known = false, .previous = false, .layers = {}};
+    bool found = false;
+    for (PresentMark& mark : fg_present_marks) {
+        if (presented == 0 || mark.address != presented) {
+            continue;
+        }
+        found = true;
+        if (mark.width != width || mark.height != height) {
+            mark = {presented, width, height, 0};
+        }
+        const u64 seq = mark.seq;
+        if (seq != 0) {
+            info.known = true;
+            info.seq = seq;
+            info.previous = seq != fg_seq;
+        }
+    }
+    if (FrameGenOrderTrace()) {
+        LOG_INFO(HW_GPU, "FG order: present {:#x}: frame {} (latest {}), known {}", presented,
+                 info.seq, fg_seq, info.known);
+    }
+    if (!found && presented != 0) {
+        fg_present_marks[fg_present_next] = {presented, width, height, 0};
+        fg_present_next = (fg_present_next + 1) % fg_present_marks.size();
+    }
+    if (!info.previous) {
+        info.layers = FrameGenUiLayers();
+    }
+    return info;
+}
+
+template <class P>
+bool TextureCache<P>::FrameGenOrderTrace() const {
+    static const bool trace = std::getenv("EDEN_FG_TRACE") != nullptr;
+    return trace && frame_tick >= 1800 && frame_tick < 1840;
+}
+
+template <class P>
+void TextureCache<P>::FrameGenCopyUi() {
+    if constexpr (!FRAMEBUFFER_BLITS) {
+        if (fg_seq == 0 || fg_ui_copied == fg_seq) {
+            return;
+        }
+        fg_ui_copied = fg_seq;
+        const ImageId layer = FrameGenUiLayerIds()[0];
+        runtime.FrameGenStashUi(layer ? &slot_images[layer] : nullptr, fg_seq);
+    }
+}
+
+template <class P>
+std::array<ImageId, 4> TextureCache<P>::FrameGenUiLayerIds() {
+    // Every full-size 8-bit colour target drawn this frame, most drawn first: the game may draw
+    // its UI into more than one (taking only the most drawn, the mask lost part of the UI on the
+    // frames where another won). The target the UI is combined into is opaque (no coverage), so
+    // including it does no harm.
+    std::array<std::pair<ImageId, u32>, 8> sorted = fg_ui_counts;
+    std::sort(sorted.begin(), sorted.begin() + static_cast<std::ptrdiff_t>(fg_ui_count_size),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::array<ImageId, 4> result{};
+    size_t count = 0;
+    const auto add = [&](ImageId id) { result[count++] = id; };
+    for (size_t i = 0; i < fg_ui_count_size && count < result.size(); ++i) {
+        if (sorted[i].second >= 2) {
+            add(sorted[i].first);
+        }
+    }
+    if (count != 0) {
+        fg_ui_last = sorted[0].first;
+        fg_ui_last_addr = slot_images[fg_ui_last].gpu_addr;
+    } else if (fg_ui_last && slot_images[fg_ui_last].gpu_addr == fg_ui_last_addr &&
+               slot_images[fg_ui_last].info.size.width == fg_ui_size.width &&
+               slot_images[fg_ui_last].info.size.height == fg_ui_size.height) {
+        // The game didn't redraw its UI this frame (nothing in it changed): it still shows the
+        // last one (without it, the mask went off on those frames and the UI flickered).
+        add(fg_ui_last);
+    }
+    return result;
+}
+
+template <class P>
+void TextureCache<P>::TraceRenderTargets() {
+    std::string line;
+    for (size_t index = 0; index < NUM_RT; ++index) {
+        const ImageViewId id = render_targets.color_buffer_ids[index];
+        if (!id) {
+            continue;
+        }
+        const ImageViewBase& view = slot_image_views[id];
+        const ImageBase& image = slot_images[view.image_id];
+        line += fmt::format("rt{} {:#x} {}x{} format {}; ", index, image.gpu_addr,
+                            image.info.size.width, image.info.size.height,
+                            static_cast<u32>(view.format));
+    }
+    if (const ImageViewId id = render_targets.depth_buffer_id) {
+        const ImageBase& image = slot_images[slot_image_views[id].image_id];
+        line += fmt::format("depth {:#x}", image.gpu_addr);
+    }
+    if (line != fg_trace_last) {
+        FlushRenderTargetTrace();
+        fg_trace_last = line;
+    }
+    ++fg_trace_count;
+}
+
+template <class P>
+void TextureCache<P>::FlushRenderTargetTrace() {
+    if (fg_trace_count != 0 && fg_trace_lines < 400) {
+        ++fg_trace_lines;
+        LOG_INFO(HW_GPU, "Draw trace: {} draws to {}", fg_trace_count, fg_trace_last);
+    }
+    fg_trace_count = 0;
 }
 
 template <class P>
@@ -1159,10 +1497,34 @@ bool TextureCache<P>::TemporalUpscale(const Tegra::Texture::TICEntry& dst,
             dst_id, ImageViewInfo(ImageViewType::e2D, ImageInfo(dst).format, *dst_range));
         // After the views: creating them may reallocate the framebuffer slots.
         Framebuffer* const dst_framebuffer = &slot_framebuffers[dst_framebuffer_id];
-        return runtime.TemporalUpscale(dst_framebuffer, slot_image_views[dst_view],
+        // Frame generation: the frame before is finished (its UI layer complete): keep its UI for
+        // when it is presented after this one has started. Then watch for the UI drawn next.
+        // (Copied here if the frame was never seen combined.)
+        FrameGenCopyUi();
+        ++fg_seq;
+        if (FrameGenOrderTrace()) {
+            LOG_INFO(HW_GPU, "FG order: DLSS evaluation, frame {}", fg_seq);
+        }
+        runtime.FrameGenBeginFrame(fg_seq);
+        fg_ui_count_size = 0;
+        fg_ui_watch = true;
+        fg_ui_dlss_seen = true;
+        fg_ui_exclude = dst_id;
+        fg_ui_size = slot_images[dst_id].info.size;
+        // Testing: trace the draws that follow, once, 30 s or more into the game.
+        static const bool trace_wanted = std::getenv("EDEN_FG_TRACE") != nullptr;
+        if (trace_wanted && !fg_trace_done && !fg_trace_active && frame_tick > 1800) {
+            fg_trace_active = true;
+            fg_trace_last.clear();
+            fg_trace_count = 0;
+            LOG_INFO(HW_GPU, "Draw trace: DLSS evaluation, output {:#x} {}x{}", dst.Address(),
+                     slot_images[dst_id].info.size.width, slot_images[dst_id].info.size.height);
+        }
+        const bool upscaled = runtime.TemporalUpscale(dst_framebuffer, slot_image_views[dst_view],
                                        slot_image_views[src_view], slot_image_views[motion_view],
                                        slot_image_views[depth_view], render_size, jitter,
                                        motion_scale);
+        return upscaled;
     }
 }
 

@@ -74,6 +74,14 @@ private:
                               VkDeviceSize buffer_size);
     void RenderScreenshot(std::span<const Tegra::FramebufferConfig> framebuffers);
     void RenderAppletCaptureLayer(std::span<const Tegra::FramebufferConfig> framebuffers);
+    /// AMD FSR 3.1 frame generation: presents a frame between the last one and `frame` (when on
+    /// and this frame has the game's motion), and paces the two.
+    /// The surface the swapchain is made on: with DLSS frame generation, the window's surface
+    /// made again through Streamline now that it has the device.
+    VkSurfaceKHR SwapchainSurface();
+
+    void GenerateFsrFrame(Frame* frame, DAddr presented, u32 presented_width,
+                          u32 presented_height);
 
     std::vector<Tegra::FramebufferConfig> applet_capture_layers;
     std::vector<Tegra::FramebufferConfig> screenshot_layer_scratch;
@@ -108,6 +116,20 @@ private:
     FrameGen frame_gen;
 #endif
     std::optional<TurboMode> turbo_mode;
+    std::optional<std::chrono::steady_clock::time_point> fsr_fg_last_composite;
+    f32 fsr_fg_interval_ms{};
+    u64 fsr_fg_generated{};
+    std::optional<std::chrono::steady_clock::time_point> fsr_fg_report_start;
+    u32 fsr_fg_made{};
+    u32 fsr_fg_skipped{};
+    u32 fsr_fg_ui{};
+    u32 fsr_fg_ui_layers{};
+    u32 fsr_fg_late{};    ///< Presented after the game had started its next frame.
+    u32 fsr_fg_unknown{}; ///< The presented buffer wasn't seen being drawn.
+    u32 fsr_fg_fallback{}; ///< Its frame wasn't prepared: the newest prepared one was used.
+    u64 dlssg_index{};     ///< NVIDIA DLSS frame generation: the last frame index presented.
+    f32 fsr_fg_wait_ms{};
+    f32 fsr_fg_minute_wait_ms{};
 
     Frame applet_frame;
 };

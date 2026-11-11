@@ -77,7 +77,15 @@ add_library(core STATIC
     file_sys/fssrv/fssrv_sf_path.h
     file_sys/fssystem/fs_i_storage.h
     file_sys/fssystem/fs_types.h
+    file_sys/fefw_60fps_patch.h
+    file_sys/fefw_60fps_search.cpp
+    file_sys/fefw_60fps_search.h
+    file_sys/fefw_60fps_search_data.h
+    file_sys/fefw_romfs_tweaks.cpp
+    file_sys/fefw_romfs_tweaks.h
     file_sys/fefw_ultrawide.h
+    fefw_frame_rate.cpp
+    fefw_frame_rate.h
     file_sys/fssystem/fssystem_aes_ctr_counter_extended_storage.cpp
     file_sys/fssystem/fssystem_aes_ctr_counter_extended_storage.h
     file_sys/fssystem/fssystem_aes_ctr_storage.cpp
@@ -219,6 +227,8 @@ add_library(core STATIC
     hle/kernel/board/nintendo/nx/secure_monitor.h
     hle/kernel/code_set.cpp
     hle/kernel/code_set.h
+    hle/kernel/fefw_cpu_stats.cpp
+    hle/kernel/fefw_cpu_stats.h
     hle/kernel/fefw_wait_stats.cpp
     hle/kernel/fefw_wait_stats.h
     hle/kernel/global_scheduler_context.cpp

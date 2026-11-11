@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <cstring>
 #include <utility>
 #include <memory>
@@ -153,7 +154,7 @@ try
     , memory_allocator(device)
     , state_tracker()
     , scheduler(device, state_tracker)
-    , swapchain(*surface,
+    , swapchain(SwapchainSurface(),
                 device,
                 scheduler,
                render_window.GetFramebufferLayout().width,
@@ -235,7 +236,21 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     }
 
     RenderScreenshot(framebuffers);
+    // Testing (EDEN_FG_TRACE=1): which image is presented, around the traced frame.
+    {
+        static const bool trace = std::getenv("EDEN_FG_TRACE") != nullptr;
+        static u32 composites = 0;
+        if (trace && ++composites >= 1795 && composites <= 1815 && !framebuffers.empty()) {
+            LOG_INFO(Render_Vulkan, "Draw trace: presenting {:#x} {}x{}", framebuffers[0].address,
+                     framebuffers[0].width, framebuffers[0].height);
+        }
+    }
+    const auto frame_wait_start = std::chrono::steady_clock::now();
     Frame* frame = present_manager.GetRenderFrame();
+    // Frame generation's pacing doesn't count time spent here waiting for a free frame.
+    fsr_fg_wait_ms += std::chrono::duration<f32, std::milli>(std::chrono::steady_clock::now() -
+                                                             frame_wait_start)
+                          .count();
 
     scheduler.RequestOutsideRenderPassOperationContext();
     blit_swapchain.DrawToFrame(device, rasterizer, frame, framebuffers,
@@ -259,6 +274,13 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     }
 #endif
 
+    if (framebuffers.empty()) {
+        GenerateFsrFrame(frame, DAddr{}, 0, 0);
+    } else {
+        GenerateFsrFrame(frame, framebuffers[0].address + framebuffers[0].offset,
+                         framebuffers[0].width, framebuffers[0].height);
+    }
+
     scheduler.Flush(*frame->render_ready);
 
     present_manager.Present(frame);
@@ -269,6 +291,310 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
 
     gpu.RendererFrameEndNotify();
     rasterizer.TickFrame();
+}
+
+VkSurfaceKHR RendererVulkan::SwapchainSurface() {
+#ifdef EGLANTINE_STREAMLINE
+    if (Streamline::IsFrameGenerationAvailable()) {
+        surface = vk::SurfaceKHR{};
+        surface = CreateSurface(instance, render_window.GetWindowInfo(), true);
+    }
+#endif
+    return *surface;
+}
+
+void RendererVulkan::GenerateFsrFrame(Frame* frame, DAddr presented, u32 presented_width,
+                                      u32 presented_height) {
+    frame->present_delay = {};
+    frame->sl_frame_gen = false;
+    frame->sl_tagged = false;
+    Fsr3FrameGenerator* const generator = rasterizer.FrameGenerator();
+    if (!generator) {
+        fsr_fg_last_composite.reset();
+        return;
+    }
+    // The game's frame interval (smoothed): the generated frame goes halfway through it.
+    const auto now = std::chrono::steady_clock::now();
+    if (fsr_fg_last_composite) {
+        // The game's own interval: without the time this thread waited for free frames, which
+        // the pacing itself causes (counted, it fed back: longer waits, slower game, longer
+        // waits; battles settled at 35-45 FPS).
+        const f32 interval =
+            (std::max)(std::chrono::duration<f32, std::milli>(now - *fsr_fg_last_composite)
+                               .count() -
+                           fsr_fg_wait_ms,
+                       1.0f);
+        fsr_fg_minute_wait_ms += fsr_fg_wait_ms;
+        fsr_fg_interval_ms = fsr_fg_interval_ms == 0.0f || interval > 4.0f * fsr_fg_interval_ms
+                                 ? interval
+                                 : fsr_fg_interval_ms * 0.9f + interval * 0.1f;
+    }
+    fsr_fg_last_composite = now;
+    fsr_fg_wait_ms = 0.0f;
+    // About every 10 s: how many frames were made, and the game's frame interval.
+    if (!fsr_fg_report_start) {
+        fsr_fg_report_start = now;
+    } else if (now - *fsr_fg_report_start >= std::chrono::seconds{10}) {
+        LOG_INFO(Render_Vulkan,
+                 "Frame generation, last 10 s: {} frames made ({} with the UI layer kept still), "
+                 "{} game frames without one; game frames {:.1f} ms apart; {:.0f} ms waiting "
+                 "for free frames; {:.2f} UI layers a frame; {} frames presented after the game "
+                 "started the next, {} not matched to a game frame, {} given the newest motion; UI "
+                 "copies made again {}",
+
+                 fsr_fg_made, fsr_fg_ui, fsr_fg_skipped, fsr_fg_interval_ms,
+                 fsr_fg_minute_wait_ms,
+                 fsr_fg_made ? static_cast<f32>(fsr_fg_ui_layers) / static_cast<f32>(fsr_fg_made)
+                             : 0.0f,
+                 fsr_fg_late, fsr_fg_unknown, fsr_fg_fallback,
+                 generator->TakeUiCopiesRecreated());
+        fsr_fg_fallback = 0;
+        fsr_fg_ui_layers = 0;
+        fsr_fg_late = 0;
+        fsr_fg_unknown = 0;
+        fsr_fg_minute_wait_ms = 0.0f;
+        fsr_fg_ui = 0;
+        fsr_fg_report_start = now;
+        fsr_fg_made = 0;
+        fsr_fg_skipped = 0;
+    }
+    // Only with the game's motion for this frame (3D scenes), storage-capable frames, and a frame
+    // rate where it helps: not above ~120 FPS (already smooth) or below ~15 (too far apart).
+    // Which of the game's frames this is: the game may present a frame after it has started
+    // the next (its motion and UI then come from what was kept for it).
+    RasterizerVulkan::FrameGenFrameInfo game_frame = rasterizer.FrameGenFrame(presented, presented_width, presented_height);
+    if (!generator->HasPrepared(game_frame.seq)) {
+        // Its frame wasn't prepared (or was used already): the newest prepared frame, as before
+        // frames were matched, rather than none.
+        const u64 newest = generator->NewestPrepared();
+        static const bool trace = std::getenv("EDEN_FG_TRACE") != nullptr;
+        static u32 traced = 0;
+        if (trace && fsr_fg_generated > 1500 && traced++ < 40) {
+            LOG_INFO(Render_Vulkan, "FG order: frame {} not prepared, newest {}",
+                     game_frame.seq, newest);
+        }
+        if (newest != 0) {
+            ++fsr_fg_fallback;
+            game_frame.seq = newest;
+            game_frame.previous = false;
+            game_frame.layers = rasterizer.FrameGenFrame(0, 0, 0).layers;
+        }
+    }
+    const bool prepared = generator->HasPrepared(game_frame.seq);
+    if (prepared) {
+        fsr_fg_late += game_frame.previous ? 1 : 0;
+        fsr_fg_unknown += game_frame.known ? 0 : 1;
+    }
+#ifdef EGLANTINE_STREAMLINE
+    // NVIDIA DLSS frame generation: its present makes and paces the frame; this frame's inputs
+    // are tagged for it (the frame without its UI, the UI's coverage, depth and motion).
+    if (Settings::values.frame_generation.GetValue() == Settings::FrameGeneration::NvidiaDlss &&
+        Streamline::IsFrameGenerationAvailable()) {
+        frame->sl_frame_gen = true;
+        frame->sl_index = ++dlssg_index;
+        if (!prepared || !frame->storage_view) {
+            ++fsr_fg_skipped;
+            generator->Skip(game_frame.seq);
+            return;
+        }
+        const Layout::FramebufferLayout layout = render_window.GetFramebufferLayout();
+        const s32 left = static_cast<s32>((std::min)(layout.screen.left, frame->width));
+        const s32 top = static_cast<s32>((std::min)(layout.screen.top, frame->height));
+        const u32 width =
+            (std::min)(layout.screen.GetWidth(), frame->width - static_cast<u32>(left));
+        const u32 height =
+            (std::min)(layout.screen.GetHeight(), frame->height - static_cast<u32>(top));
+        const VkFormat format = present_manager.SwapchainImageFormat();
+        const u32 transfer_function = format == VK_FORMAT_A2B10G10R10_UNORM_PACK32   ? 1U
+                                      : format == VK_FORMAT_R16G16B16A16_SFLOAT ? 2U
+                                                                                : 0U;
+        const bool late = game_frame.previous;
+        generator->Generate({
+            .current_image = *frame->image,
+            .current_view = *frame->storage_view,
+            .output_image = VK_NULL_HANDLE,
+            .output_view = VK_NULL_HANDLE,
+            .format = format,
+            .display_size = {frame->width, frame->height},
+            .interpolation_rect = {.offset = {left, top}, .extent = {width, height}},
+            .frame_time_ms = fsr_fg_interval_ms,
+            .reset = false,
+            .transfer_function = transfer_function,
+            .min_max_luminance = {0.0f, 1000.0f},
+            .ui_layers = game_frame.layers,
+            .show_ui_mask = false,
+            .seq = game_frame.seq,
+            .late = late,
+            .show_ui_less = false,
+            .dlss = true,
+        });
+        const Fsr3FrameGenerator::DlssImages& images = generator->LastDlssImages();
+        const auto image = [](const Fsr3FrameGenerator::Image& in) {
+            return Streamline::FrameGenImage{in.image, in.view, in.format, in.size};
+        };
+        const Streamline::FrameGenInputs inputs{
+            .index = frame->sl_index,
+            .depth = image(images.depth),
+            .motion_vectors = image(images.motion_vectors),
+            .hudless = image(images.hudless),
+            .ui_alpha = image(images.ui_alpha),
+            .backbuffer_rect = {.offset = {left, top}, .extent = {width, height}},
+            .jitter = images.jitter,
+            .reset = images.reset,
+        };
+        scheduler.Record([inputs](vk::CommandBuffer cmdbuf) {
+            Streamline::FrameGenTagFrame(*cmdbuf, inputs);
+        });
+        // Streamline records its own copies and state on the command buffer.
+        scheduler.InvalidateState();
+        frame->sl_tagged = true;
+        Settings::SetActiveFrameGeneration("NVIDIA DLSS");
+        ++fsr_fg_made;
+        if (++fsr_fg_generated == 1) {
+            LOG_INFO(Render_Vulkan, "NVIDIA DLSS frame generation: first frame tagged");
+        }
+        return;
+    }
+#endif
+    const bool wanted = prepared && frame->storage_view &&
+                        fsr_fg_interval_ms > 7.5f && fsr_fg_interval_ms < 70.0f;
+    if (!wanted) {
+        // Once a session: why no frame was made while the game had motion.
+        static bool logged{};
+        if (prepared && !logged) {
+            logged = true;
+            LOG_INFO(Render_Vulkan,
+                     "AMD FSR 3.1 frame generation skipped: frame storage {}, {:.1f} ms apart",
+                     static_cast<bool>(frame->storage_view), fsr_fg_interval_ms);
+        }
+        generator->Skip(game_frame.seq);
+        ++fsr_fg_skipped;
+        return;
+    }
+    const Layout::FramebufferLayout layout = render_window.GetFramebufferLayout();
+    const auto generated_wait_start = std::chrono::steady_clock::now();
+    Frame* const generated = present_manager.GetRenderFrame();
+    fsr_fg_wait_ms += std::chrono::duration<f32, std::milli>(std::chrono::steady_clock::now() -
+                                                             generated_wait_start)
+                          .count();
+    blit_swapchain.PrepareFrame(device, generated, layout);
+    const VkFormat format = present_manager.SwapchainImageFormat();
+    const u32 transfer_function = format == VK_FORMAT_A2B10G10R10_UNORM_PACK32   ? 1U
+                                  : format == VK_FORMAT_R16G16B16A16_SFLOAT ? 2U
+                                                                            : 0U;
+    const s32 left = static_cast<s32>((std::min)(layout.screen.left, frame->width));
+    const s32 top = static_cast<s32>((std::min)(layout.screen.top, frame->height));
+    const u32 width = (std::min)(layout.screen.GetWidth(), frame->width - static_cast<u32>(left));
+    const u32 height =
+        (std::min)(layout.screen.GetHeight(), frame->height - static_cast<u32>(top));
+    // Testing: EDEN_FG_DEBUG=1 presents a copy of the real frame in the generated one's place
+    // (the pacing alone), 2 shows only generated frames (the real one is overwritten with it), 3
+    // shows the UI mask that way, 4 generated frames without the UI mask, 5 the frame without
+    // its UI (what frame generation moves) that way.
+    static const int debug_mode = [] {
+        const char* value = std::getenv("EDEN_FG_DEBUG");
+        return value != nullptr ? std::atoi(value) : 0;
+    }();
+    if (!generated->storage_view || generated->width != frame->width ||
+        generated->height != frame->height || width == 0 || height == 0 || debug_mode == 1) {
+        // Shouldn't happen (the frames are made alike); show the real frame twice.
+        generator->Skip(game_frame.seq);
+        scheduler.Record([source = *frame->image, destination = *generated->image,
+                          w = frame->width, h = frame->height](vk::CommandBuffer cmdbuf) {
+            const VkImageMemoryBarrier barrier{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = 0,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = destination,
+                .subresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+            };
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                   VK_PIPELINE_STAGE_TRANSFER_BIT, 0, {}, {}, barrier);
+            cmdbuf.CopyImage(source, VK_IMAGE_LAYOUT_GENERAL, destination, VK_IMAGE_LAYOUT_GENERAL,
+                             VkImageCopy{
+                                 .srcSubresource{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                                 .srcOffset{},
+                                 .dstSubresource{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                                 .dstOffset{},
+                                 .extent{w, h, 1},
+                             });
+        });
+        scheduler.Flush(*generated->render_ready);
+        present_manager.Present(generated);
+        return;
+    }
+    std::array<VkImageView, 4> ui_layers{};
+    if (debug_mode != 4) {
+        ui_layers = game_frame.layers;
+    }
+    // A late frame's UI layer is no longer there: the copy taken when it was combined is used
+    // (the generator prefers that copy whenever it has one).
+    const bool late = game_frame.previous && debug_mode != 4;
+    if (ui_layers[0] || late) {
+        ++fsr_fg_ui;
+    }
+    for (const VkImageView layer : ui_layers) {
+        fsr_fg_ui_layers += layer ? 1 : 0;
+    }
+    fsr_fg_ui_layers += late ? 1 : 0;
+    generator->Generate({
+        .current_image = *frame->image,
+        .current_view = *frame->storage_view,
+        .output_image = *generated->image,
+        .output_view = *generated->storage_view,
+        .format = format,
+        .display_size = {frame->width, frame->height},
+        .interpolation_rect = {.offset = {left, top}, .extent = {width, height}},
+        .frame_time_ms = fsr_fg_interval_ms,
+        .reset = false,
+        .transfer_function = transfer_function,
+        .min_max_luminance = {0.0f, 1000.0f},
+        .ui_layers = ui_layers,
+        .show_ui_mask = debug_mode == 3,
+        .seq = game_frame.seq,
+        .late = late,
+        .show_ui_less = debug_mode == 5,
+    });
+    if (debug_mode >= 2) {
+        scheduler.Record([source = *generated->image, destination = *frame->image,
+                          w = frame->width, h = frame->height](vk::CommandBuffer cmdbuf) {
+            cmdbuf.CopyImage(source, VK_IMAGE_LAYOUT_GENERAL, destination, VK_IMAGE_LAYOUT_GENERAL,
+                             VkImageCopy{
+                                 .srcSubresource{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                                 .srcOffset{},
+                                 .dstSubresource{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                                 .dstOffset{},
+                                 .extent{w, h, 1},
+                             });
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                   0, VkMemoryBarrier{
+                                          .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                                          .pNext = nullptr,
+                                          .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                                          .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                                      });
+        });
+    }
+    // The generated frame goes up as soon as it is ready, the real one about half the game's
+    // interval later (a little less, so a late frame catches up). Only the real one waits: when
+    // both did, the emulated GPU waited for free frames behind the waits, the game slowed, the
+    // measured interval grew and the waits with it (60 FPS settled at 30).
+    generated->present_delay = {};
+    frame->present_delay = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::duration<f32, std::milli>(fsr_fg_interval_ms * 0.45f));
+    scheduler.Flush(*generated->render_ready);
+    present_manager.Present(generated);
+    Settings::SetActiveFrameGeneration("AMD FSR 3.1");
+    ++fsr_fg_made;
+    if (++fsr_fg_generated == 1) {
+        LOG_INFO(Render_Vulkan, "AMD FSR 3.1 frame generation: first frame made ({:.1f} ms apart)",
+                 fsr_fg_interval_ms);
+    }
 }
 
 void RendererVulkan::Report() const {

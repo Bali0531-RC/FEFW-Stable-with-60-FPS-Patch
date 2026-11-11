@@ -9,13 +9,16 @@
 
 #include "common/common_types.h"
 
+class QCheckBox;
+class QComboBox;
+class QSlider;
 class QLabel;
 class QPushButton;
 class QStandardItemModel;
 
 /// Fortune's Eden's launch screen: a card above the game list with Fire Emblem: Fortune's
-/// Weave's icon, title and version, the upscaler in use and Play / Game Settings / Settings /
-/// Check for Updates. Shown and hidden with the game list (it holds the list), and only while
+/// Weave's icon, title and version, the upscaler in use and Play (with the 60 FPS mode beside it)
+/// / Game Settings / Settings / Check for Updates. Shown and hidden with the game list (it holds the list), and only while
 /// the game is in the list.
 class FefwHome : public QWidget {
     Q_OBJECT
@@ -27,7 +30,7 @@ public:
 
     /// Looks for Fortune's Weave in the game list's model and shows or hides the card.
     void Refresh(const QStandardItemModel& model);
-    /// Re-reads the upscaler line (after the settings change).
+    /// Re-reads the card's settings (after the settings change).
     void UpdateStatusLine();
 
 signals:
@@ -35,6 +38,10 @@ signals:
     void GameSettingsRequested(u64 title_id, const QString& path);
     void SettingsRequested();
     void UpdateCheckRequested();
+    /// A setting on the card changed (60 FPS, upscaler, quality, frame generation): it is
+    /// already set; save it.
+    void SettingChanged();
+    void PerformanceSettingsRequested();
 
 protected:
     bool eventFilter(QObject* object, QEvent* event) override;
@@ -46,5 +53,13 @@ private:
     QLabel* version_label{};
     QLabel* status_label{};
     QPushButton* play_button{};
+    QCheckBox* sixty_fps{};
+    QComboBox* upscaler_box{};
+    QComboBox* quality_box{};
+    QComboBox* frame_gen_box{};
+    QCheckBox* ultrawide_box{};
+    QCheckBox* hdr_box{};
+    QSlider* paper_white{};
+    QLabel* paper_white_label{};
     QString game_path;
 };
