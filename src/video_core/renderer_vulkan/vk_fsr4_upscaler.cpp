@@ -142,6 +142,10 @@ private:
         if (const auto executable = std::filesystem::read_symlink("/proc/self/exe", ec); !ec) {
             candidates.push_back(executable.parent_path() / LIBRARY_NAME);
         }
+        if (const char* appimage = std::getenv("APPIMAGE"); appimage && *appimage) {
+            candidates.push_back(std::filesystem::path{appimage}.parent_path() / LIBRARY_NAME);
+        }
+        candidates.push_back(Common::FS::GetEdenPath(Common::FS::EdenPath::EdenDir) / LIBRARY_NAME);
         candidates.emplace_back(std::filesystem::current_path() / LIBRARY_NAME);
         candidates.emplace_back("externals/fsr4-vk/build/linux/" + std::string{LIBRARY_NAME});
 #endif
