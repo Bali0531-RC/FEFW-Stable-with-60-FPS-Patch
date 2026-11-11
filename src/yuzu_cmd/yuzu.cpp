@@ -387,9 +387,11 @@ extern "C" void SDL_AppQuit(void *appstate, SDL_AppResult result) {
     if (!state) {
         return;
     }
-    state->system.DetachDebugger();
-    void(state->system.Pause());
-    state->system.ShutdownMainProcess();
+    if (state->system.IsPoweredOn()) {
+        state->system.DetachDebugger();
+        void(state->system.Pause());
+        state->system.ShutdownMainProcess();
+    }
     delete state;
 }
 
